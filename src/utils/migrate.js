@@ -80,6 +80,29 @@ const createTables = async () => {
       )
     `);
 
+    // Add new columns for compliance details if they do not exist
+    await db.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='next_bas_due') THEN
+          ALTER TABLE companies ADD COLUMN next_bas_due DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='next_fbt_due') THEN
+          ALTER TABLE companies ADD COLUMN next_fbt_due DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='ias_required') THEN
+          ALTER TABLE companies ADD COLUMN ias_required BOOLEAN;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='ias_frequency') THEN
+          ALTER TABLE companies ADD COLUMN ias_frequency VARCHAR(20);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='next_ias_due') THEN
+          ALTER TABLE companies ADD COLUMN next_ias_due DATE;
+        END IF;
+      END
+      $$;
+    `);
+
     console.log('Database tables created successfully');
   } catch (error) {
     console.error('Error creating tables:', error);

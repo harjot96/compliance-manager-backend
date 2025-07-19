@@ -105,9 +105,33 @@ const profileUpdateSchema = Joi.object({
     })
 });
 
+const complianceDetailsSchema = Joi.object({
+  basFrequency: Joi.string().valid('Monthly', 'Quarterly', 'Annually').required(),
+  nextBasDue: Joi.date().greater('now').required(),
+  fbtApplicable: Joi.boolean().required(),
+  nextFbtDue: Joi.when('fbtApplicable', {
+    is: true,
+    then: Joi.date().greater('now').required(),
+    otherwise: Joi.forbidden()
+  }),
+  iasRequired: Joi.boolean().required(),
+  iasFrequency: Joi.when('iasRequired', {
+    is: true,
+    then: Joi.string().valid('Monthly', 'Quarterly', 'Annually').required(),
+    otherwise: Joi.forbidden()
+  }),
+  nextIasDue: Joi.when('iasRequired', {
+    is: true,
+    then: Joi.date().greater('now').required(),
+    otherwise: Joi.forbidden()
+  }),
+  financialYearEnd: Joi.date().required()
+});
+
 module.exports = {
   registrationSchema,
   loginSchema,
   complianceSchema,
-  profileUpdateSchema
+  profileUpdateSchema,
+  complianceDetailsSchema // Export new schema
 };
