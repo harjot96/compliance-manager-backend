@@ -23,6 +23,10 @@ router.post('/register-superadmin', validateRequest(registrationSchema), company
 router.patch('/compliance', authMiddleware, validateRequest(complianceSchema), companyController.updateComplianceDetails);
 router.patch('/profile', authMiddleware, validateRequest(profileUpdateSchema), companyController.updateProfile);
 
+// Compliance details routes (for authenticated company)
+router.get('/compliance-details', authMiddleware, companyController.getComplianceDetails);
+router.patch('/compliance-details', authMiddleware, companyController.upsertComplianceDetails);
+
 // Super Admin only test route
 router.get('/superadmin-only', authMiddleware, isSuperAdmin, (req, res) => {
   res.json({ success: true, message: 'You are a Super Admin!' });
@@ -30,6 +34,9 @@ router.get('/superadmin-only', authMiddleware, isSuperAdmin, (req, res) => {
 
 // Super Admin: Get all companies
 router.get('/all', authMiddleware, requireSuperAdmin, companyController.getAllCompanies);
+
+// Superadmin: Get compliance details for any company
+router.get('/compliance-details/:companyId', authMiddleware, requireSuperAdmin, companyController.getComplianceDetailsByCompanyId);
 
 // Notification Template routes (Super Admin only)
 router.post('/templates', authMiddleware, requireSuperAdmin, notificationTemplateController.createTemplate);

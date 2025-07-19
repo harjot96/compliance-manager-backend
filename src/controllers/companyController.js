@@ -1,5 +1,7 @@
 const Company = require('../models/Company');
+const CompanyCompliance = require('../models/CompanyCompliance');
 const { generateToken } = require('../utils/jwt');
+const { complianceDetailsSchema } = require('../utils/validation');
 
 // Register new company
 const register = async (req, res, next) => {
@@ -106,6 +108,51 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
+// Create or update compliance details for the authenticated company
+const upsertComplianceDetails = async (req, res, next) => {
+  try {
+    // Validate request body
+    const { error } = complianceDetailsSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: error.details.map(detail => ({
+          field: detail.path.join('.'),
+          message: detail.message
+        }))
+      });
+    }
+    // Check if compliance record exists
+    let compliance = await CompanyCompliance.getByCompanyId(req.company.id);
+    if (compliance) {
+      compliance = await CompanyCompliance.update(req.company.id, req.body);
+    } else {
+      compliance = await CompanyCompliance.create(req.company.id, req.body);
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Compliance details saved',
+      data: compliance.toJSON()
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get compliance details for the authenticated company
+const getComplianceDetails = async (req, res, next) => {
+  try {
+    const compliance = await CompanyCompliance.getByCompanyId(req.company.id);
+    if (!compliance) {
+      return res.status(404).json({ success: false, message: 'Compliance details not found' });
+    }
+    res.json({ success: true, data: compliance.toJSON() });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Get all companies (Super Admin only, paginated)
 const getAllCompanies = async (req, res, next) => {
   try {
@@ -135,12 +182,29 @@ const getAllCompanies = async (req, res, next) => {
   }
 };
 
+// Get compliance details for any company (Super Admin only)
+const getComplianceDetailsByCompanyId = async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+    const compliance = await CompanyCompliance.getByCompanyId(companyId);
+    if (!compliance) {
+      return res.status(404).json({ success: false, message: 'Compliance details not found' });
+    }
+    res.json({ success: true, data: compliance.toJSON() });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   updateComplianceDetails,
   updateProfile,
   registerSuperAdmin, // Export new function
-  getAllCompanies // Export getAllCompanies
+  getAllCompanies, // Export getAllCompanies
+  upsertComplianceDetails, // Export new upsert function
+  getComplianceDetails, // Export new get function
+  getComplianceDetailsByCompanyId // Export superadmin function
 };
 

@@ -80,6 +80,24 @@ const createTables = async () => {
       )
     `);
 
+    // Create company_compliance table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS company_compliance (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        bas_frequency VARCHAR(20) NOT NULL,
+        next_bas_due DATE NOT NULL,
+        fbt_applicable BOOLEAN NOT NULL,
+        next_fbt_due DATE,
+        ias_required BOOLEAN NOT NULL,
+        ias_frequency VARCHAR(20),
+        next_ias_due DATE,
+        financial_year_end DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Add new columns for compliance details if they do not exist
     await db.query(`
       DO $$
