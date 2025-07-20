@@ -196,6 +196,56 @@ const getComplianceDetailsByCompanyId = async (req, res, next) => {
   }
 };
 
+// Edit any company (Super Admin)
+const editCompany = async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+    const { isActive, ...profileFields } = req.body;
+    let updatedCompany = null;
+    // If isActive is provided, update it first
+    if (typeof isActive === 'boolean') {
+      updatedCompany = await Company.setActiveStatus(companyId, isActive);
+      if (!updatedCompany) {
+        return res.status(404).json({ success: false, message: 'Company not found' });
+      }
+    }
+    // Update profile fields
+    updatedCompany = await Company.updateProfile(companyId, profileFields);
+    if (!updatedCompany) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Company updated successfully',
+      data: updatedCompany.toJSON()
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Activate or deactivate a company (Super Admin)
+const setCompanyActiveStatus = async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+    const { isActive } = req.body;
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'isActive must be a boolean' });
+    }
+    const updatedCompany = await Company.setActiveStatus(companyId, isActive);
+    if (!updatedCompany) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
+    res.status(200).json({
+      success: true,
+      message: `Company has been ${isActive ? 'activated' : 'deactivated'}`,
+      data: updatedCompany.toJSON()
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -205,6 +255,8 @@ module.exports = {
   getAllCompanies, // Export getAllCompanies
   upsertComplianceDetails, // Export new upsert function
   getComplianceDetails, // Export new get function
-  getComplianceDetailsByCompanyId // Export superadmin function
+  getComplianceDetailsByCompanyId, // Export superadmin function
+  editCompany, // Export edit company
+  setCompanyActiveStatus // Export activate/deactivate
 };
 

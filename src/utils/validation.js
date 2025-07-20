@@ -144,10 +144,45 @@ const complianceDetailsSchema = Joi.object({
   financialYearEnd: Joi.date().required()
 });
 
+const superAdminCompanyUpdateSchema = Joi.object({
+  companyName: Joi.string()
+    .min(2)
+    .max(255)
+    .required()
+    .messages({
+      'string.min': 'Company name must be at least 2 characters long',
+      'string.max': 'Company name must not exceed 255 characters',
+      'any.required': 'Company name is required'
+    }),
+  email: Joi.string()
+    .email()
+    .required()
+    .messages({
+      'string.email': 'Please provide a valid email address',
+      'any.required': 'Email is required'
+    }),
+  mobileNumber: Joi.string()
+    .pattern(/^[+]?[1-9][\d\s\-\(\)]{8,20}$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Please provide a valid mobile number',
+      'any.required': 'Mobile number is required'
+    }),
+  countryCode: Joi.string()
+    .pattern(/^\+[1-9]\d{0,3}$/)
+    .default('+61')
+    .messages({
+      'string.pattern.base': 'Please provide a valid country code (e.g., +61, +1, +44)',
+      'string.base': 'Country code must be a string'
+    }),
+  isActive: Joi.boolean().optional()
+});
+
 module.exports = {
   registrationSchema,
   loginSchema,
   complianceSchema,
   profileUpdateSchema,
-  complianceDetailsSchema // Export new schema
+  complianceDetailsSchema, // Export new schema
+  superAdminCompanyUpdateSchema // Export super admin update schema
 };

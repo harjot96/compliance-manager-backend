@@ -84,6 +84,21 @@ class Company {
     return new Company(result.rows[0]);
   }
 
+  // Activate or deactivate a company
+  static async setActiveStatus(id, isActive) {
+    const query = `
+      UPDATE companies
+      SET is_active = $1
+      WHERE id = $2
+      RETURNING *
+    `;
+    const result = await db.query(query, [isActive, id]);
+    if (result.rows.length === 0) {
+      return null;
+    }
+    return new Company(result.rows[0]);
+  }
+
   // Verify password
   async verifyPassword(password) {
     return await bcrypt.compare(password, this.passwordHash);

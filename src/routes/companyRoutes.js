@@ -7,7 +7,8 @@ const {
   registrationSchema,
   loginSchema,
   complianceSchema,
-  profileUpdateSchema
+  profileUpdateSchema,
+  superAdminCompanyUpdateSchema
 } = require('../utils/validation');
 const { isSuperAdmin, requireSuperAdmin } = require('../middleware/auth');
 const notificationTemplateController = require('../controllers/notificationTemplateController');
@@ -37,6 +38,9 @@ router.get('/all', authMiddleware, requireSuperAdmin, companyController.getAllCo
 
 // Superadmin: Get compliance details for any company
 router.get('/compliance-details/:companyId', authMiddleware, requireSuperAdmin, companyController.getComplianceDetailsByCompanyId);
+
+// Super Admin: Edit any company
+router.put('/:companyId', authMiddleware, requireSuperAdmin, validateRequest(superAdminCompanyUpdateSchema), companyController.editCompany);
 
 // Notification Template routes (Super Admin only)
 router.post('/templates', authMiddleware, requireSuperAdmin, notificationTemplateController.createTemplate);
