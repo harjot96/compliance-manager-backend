@@ -27,6 +27,14 @@ const registrationSchema = Joi.object({
       'any.required': 'Mobile number is required'
     }),
   
+  countryCode: Joi.string()
+    .pattern(/^\+[1-9]\d{0,3}$/)
+    .default('+61')
+    .messages({
+      'string.pattern.base': 'Please provide a valid country code (e.g., +61, +1, +44)',
+      'string.base': 'Country code must be a string'
+    }),
+  
   password: Joi.string()
     .min(8)
     .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
@@ -102,6 +110,14 @@ const profileUpdateSchema = Joi.object({
     .messages({
       'string.pattern.base': 'Please provide a valid mobile number',
       'any.required': 'Mobile number is required'
+    }),
+  
+  countryCode: Joi.string()
+    .pattern(/^\+[1-9]\d{1,4}$/)
+    .default('+61')
+    .messages({
+      'string.pattern.base': 'Please provide a valid country code (e.g., +61, +1, +44)',
+      'string.base': 'Country code must be a string'
     })
 });
 

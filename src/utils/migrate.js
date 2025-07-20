@@ -9,6 +9,7 @@ const createTables = async () => {
         company_name VARCHAR(255) NOT NULL UNIQUE,
         email VARCHAR(255) NOT NULL UNIQUE,
         mobile_number VARCHAR(20) NOT NULL,
+        country_code VARCHAR(5) DEFAULT '+61',
         password_hash VARCHAR(255) NOT NULL,
         bas_frequency VARCHAR(50) CHECK (bas_frequency IN ('Monthly', 'Quarterly', 'Annually')),
         fbt_applicable BOOLEAN DEFAULT FALSE,
@@ -116,6 +117,9 @@ const createTables = async () => {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='next_ias_due') THEN
           ALTER TABLE companies ADD COLUMN next_ias_due DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='country_code') THEN
+          ALTER TABLE companies ADD COLUMN country_code VARCHAR(5) DEFAULT '+61';
         END IF;
       END
       $$;

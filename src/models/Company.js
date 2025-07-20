@@ -8,6 +8,7 @@ class Company {
     this.companyName = data.company_name;
     this.email = data.email;
     this.mobileNumber = data.mobile_number;
+    this.countryCode = data.country_code;
     this.passwordHash = data.password_hash;
     this.role = data.role;
     this.isActive = data.is_active;
@@ -17,19 +18,19 @@ class Company {
 
   // Create a new company
   static async create(companyData) {
-    const { companyName, email, mobileNumber, password, role } = companyData;
+    const { companyName, email, mobileNumber, countryCode, password, role } = companyData;
     
     // Hash password
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     const query = `
-      INSERT INTO companies (company_name, email, mobile_number, password_hash, role)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO companies (company_name, email, mobile_number, country_code, password_hash, role)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
     
-    const result = await db.query(query, [companyName, email, mobileNumber, passwordHash, role || 'company']);
+    const result = await db.query(query, [companyName, email, mobileNumber, countryCode || '+61', passwordHash, role || 'company']);
     return new Company(result.rows[0]);
   }
 
@@ -65,16 +66,16 @@ class Company {
 
   // Update company profile
   static async updateProfile(id, profileData) {
-    const { companyName, email, mobileNumber } = profileData;
+    const { companyName, email, mobileNumber, countryCode } = profileData;
     
     const query = `
       UPDATE companies 
-      SET company_name = $1, email = $2, mobile_number = $3
-      WHERE id = $4 AND is_active = TRUE
+      SET company_name = $1, email = $2, mobile_number = $3, country_code = $4
+      WHERE id = $5 AND is_active = TRUE
       RETURNING *
     `;
     
-    const result = await db.query(query, [companyName, email, mobileNumber, id]);
+    const result = await db.query(query, [companyName, email, mobileNumber, countryCode || '+61', id]);
     
     if (result.rows.length === 0) {
       return null;
@@ -102,6 +103,7 @@ class Company {
       companyName: this.companyName,
       email: this.email,
       mobileNumber: this.mobileNumber,
+      countryCode: this.countryCode,
       role: this.role,
       isActive: this.isActive,
       createdAt: this.createdAt,
