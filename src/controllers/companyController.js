@@ -246,6 +246,27 @@ const setCompanyActiveStatus = async (req, res, next) => {
   }
 };
 
+// Get company information by ID (Super Admin)
+const getCompanyById = async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+    const company = await Company.findById(companyId, true); // includeInactive = true
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
+    const compliance = await CompanyCompliance.getByCompanyId(companyId);
+    res.status(200).json({
+      success: true,
+      data: {
+        company: company.toJSON(),
+        compliance: compliance ? compliance.toJSON() : null
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -257,6 +278,7 @@ module.exports = {
   getComplianceDetails, // Export new get function
   getComplianceDetailsByCompanyId, // Export superadmin function
   editCompany, // Export edit company
-  setCompanyActiveStatus // Export activate/deactivate
+  setCompanyActiveStatus, // Export activate/deactivate
+  getCompanyById, // Export new getCompanyById
 };
 

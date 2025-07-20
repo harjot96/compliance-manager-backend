@@ -42,6 +42,9 @@ router.get('/compliance-details/:companyId', authMiddleware, requireSuperAdmin, 
 // Super Admin: Edit any company
 router.put('/:companyId', authMiddleware, requireSuperAdmin, validateRequest(superAdminCompanyUpdateSchema), companyController.editCompany);
 
+// Super Admin: Get company information by ID
+router.get('/:companyId', authMiddleware, requireSuperAdmin, companyController.getCompanyById);
+
 // Notification Template routes (Super Admin only)
 router.post('/templates', authMiddleware, requireSuperAdmin, notificationTemplateController.createTemplate);
 router.get('/templates', authMiddleware, requireSuperAdmin, notificationTemplateController.getAllTemplates);
