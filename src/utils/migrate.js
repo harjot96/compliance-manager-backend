@@ -125,6 +125,18 @@ const createTables = async () => {
       $$;
     `);
 
+    // Create cronjob_settings table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS cronjob_settings (
+        id SERIAL PRIMARY KEY,
+        type VARCHAR(50) NOT NULL UNIQUE,
+        duration_days INTEGER NOT NULL DEFAULT 1,
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     console.log('Database tables created successfully');
   } catch (error) {
     console.error('Error creating tables:', error);

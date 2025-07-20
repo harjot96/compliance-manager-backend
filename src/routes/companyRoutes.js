@@ -39,12 +39,6 @@ router.get('/all', authMiddleware, requireSuperAdmin, companyController.getAllCo
 // Superadmin: Get compliance details for any company
 router.get('/compliance-details/:companyId', authMiddleware, requireSuperAdmin, companyController.getComplianceDetailsByCompanyId);
 
-// Super Admin: Edit any company
-router.put('/:companyId', authMiddleware, requireSuperAdmin, validateRequest(superAdminCompanyUpdateSchema), companyController.editCompany);
-
-// Super Admin: Get company information by ID
-router.get('/:companyId', authMiddleware, requireSuperAdmin, companyController.getCompanyById);
-
 // Notification Template routes (Super Admin only)
 router.post('/templates', authMiddleware, requireSuperAdmin, notificationTemplateController.createTemplate);
 router.get('/templates', authMiddleware, requireSuperAdmin, notificationTemplateController.getAllTemplates);
@@ -58,5 +52,11 @@ router.get('/settings', authMiddleware, requireSuperAdmin, notificationSettingCo
 router.get('/settings/:type', authMiddleware, requireSuperAdmin, notificationSettingController.getSettingByType);
 router.put('/settings/:id', authMiddleware, requireSuperAdmin, notificationSettingController.updateSetting);
 router.delete('/settings/:id', authMiddleware, requireSuperAdmin, notificationSettingController.deleteSetting);
+
+// Super Admin: Edit any company
+router.put('/:companyId', authMiddleware, requireSuperAdmin, validateRequest(superAdminCompanyUpdateSchema), companyController.editCompany);
+
+// Super Admin: Get company information by ID
+router.get('/:companyId', authMiddleware, requireSuperAdmin, companyController.getCompanyById);
 
 module.exports = router;

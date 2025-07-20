@@ -48,6 +48,12 @@ class NotificationSetting {
     return result.rows.length ? new NotificationSetting(result.rows[0]) : null;
   }
 
+  static async getById(id) {
+    const query = 'SELECT * FROM notification_settings WHERE id = $1';
+    const result = await db.query(query, [id]);
+    return result.rows.length ? new NotificationSetting(result.rows[0]) : null;
+  }
+
   toJSON() {
     return {
       id: this.id,

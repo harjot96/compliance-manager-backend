@@ -1,4 +1,17 @@
+const Joi = require('joi');
 const NotificationSetting = require('../models/NotificationSetting');
+
+const twilioSchema = Joi.object({
+  accountSid: Joi.string().required(),
+  authToken: Joi.string().required(),
+  fromNumber: Joi.string().required()
+});
+
+const sendgridSchema = Joi.object({
+  apiKey: Joi.string().required(),
+  fromEmail: Joi.string().email().required(),
+  fromName: Joi.string().required()
+});
 
 // Create a new setting
 const createSetting = async (req, res, next) => {
@@ -9,6 +22,16 @@ const createSetting = async (req, res, next) => {
     }
     if (!config || typeof config !== 'object') {
       return res.status(400).json({ success: false, message: 'Config must be an object' });
+    }
+    // Validate config
+    let validation;
+    if (type === 'twilio') {
+      validation = twilioSchema.validate(config);
+    } else if (type === 'smtp') {
+      validation = sendgridSchema.validate(config);
+    }
+    if (validation && validation.error) {
+      return res.status(400).json({ success: false, message: validation.error.details[0].message });
     }
     const setting = await NotificationSetting.create({ type, config });
     res.status(201).json({ success: true, data: setting.toJSON() });
@@ -22,14 +45,23 @@ const updateSetting = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { config } = req.body;
-    if (!config || typeof config !== 'object') {
-      return res.status(400).json({ success: false, message: 'Config must be an object' });
-    }
-    const setting = await NotificationSetting.update(id, { config });
+    // Find type for this setting
+    const setting = await NotificationSetting.getById(id);
     if (!setting) {
       return res.status(404).json({ success: false, message: 'Setting not found' });
     }
-    res.json({ success: true, data: setting.toJSON() });
+    // Validate config
+    let validation;
+    if (setting.type === 'twilio') {
+      validation = twilioSchema.validate(config);
+    } else if (setting.type === 'smtp') {
+      validation = sendgridSchema.validate(config);
+    }
+    if (validation && validation.error) {
+      return res.status(400).json({ success: false, message: validation.error.details[0].message });
+    }
+    const updated = await NotificationSetting.update(id, { config });
+    res.json({ success: true, data: updated.toJSON() });
   } catch (error) {
     next(error);
   }

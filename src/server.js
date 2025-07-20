@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const companyRoutes = require('./routes/companyRoutes');
+const cronjobSettingRoutes = require('./routes/cronjobSettingRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -57,6 +58,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/companies', companyRoutes);
+app.use('/api/cronjob-settings', cronjobSettingRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
