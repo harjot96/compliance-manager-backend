@@ -209,8 +209,8 @@ const editCompany = async (req, res, next) => {
         return res.status(404).json({ success: false, message: 'Company not found' });
       }
     }
-    // Update profile fields
-    updatedCompany = await Company.updateProfile(companyId, profileFields);
+    // Update profile fields (includeInactive = true for super admin)
+    updatedCompany = await Company.updateProfile(companyId, profileFields, true);
     if (!updatedCompany) {
       return res.status(404).json({ success: false, message: 'Company not found' });
     }

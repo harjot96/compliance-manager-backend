@@ -47,14 +47,14 @@ class Company {
   }
 
   // Find company by ID
-  static async findById(id) {
-    const query = 'SELECT * FROM companies WHERE id = $1 AND is_active = TRUE';
+  static async findById(id, includeInactive = false) {
+    const query = includeInactive
+      ? 'SELECT * FROM companies WHERE id = $1'
+      : 'SELECT * FROM companies WHERE id = $1 AND is_active = TRUE';
     const result = await db.query(query, [id]);
-    
     if (result.rows.length === 0) {
       return null;
     }
-    
     return new Company(result.rows[0]);
   }
 
@@ -65,22 +65,21 @@ class Company {
   }
 
   // Update company profile
-  static async updateProfile(id, profileData) {
+  static async updateProfile(id, profileData, includeInactive = false) {
     const { companyName, email, mobileNumber, countryCode } = profileData;
-    
-    const query = `
-      UPDATE companies 
-      SET company_name = $1, email = $2, mobile_number = $3, country_code = $4
-      WHERE id = $5 AND is_active = TRUE
-      RETURNING *
-    `;
-    
+    const query = includeInactive
+      ? `UPDATE companies 
+           SET company_name = $1, email = $2, mobile_number = $3, country_code = $4
+           WHERE id = $5
+           RETURNING *`
+      : `UPDATE companies 
+           SET company_name = $1, email = $2, mobile_number = $3, country_code = $4
+           WHERE id = $5 AND is_active = TRUE
+           RETURNING *`;
     const result = await db.query(query, [companyName, email, mobileNumber, countryCode || '+61', id]);
-    
     if (result.rows.length === 0) {
       return null;
     }
-    
     return new Company(result.rows[0]);
   }
 
