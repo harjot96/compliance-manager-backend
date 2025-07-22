@@ -14,7 +14,7 @@ const deadlineSchema = Joi.object({
     }).optional()
   }).optional(),
   annual: Joi.object({
-    standard: Joi.string().optional(),
+    standard: Joi.string().allow('').optional(), // Allow empty string
     noTaxReturn: Joi.string().allow('').optional() // Allow empty string
   }).optional(),
   ias: Joi.object({
@@ -57,18 +57,7 @@ const updateDeadlines = async (req, res, next) => {
     if (existing.fbt && req.body.fbt) merged.fbt = { ...existing.fbt, ...req.body.fbt };
     if (existing.fbt?.annual && req.body.fbt?.annual) merged.fbt.annual = { ...existing.fbt.annual, ...req.body.fbt.annual };
     // Remove old keys from quarterly if present
-    if (merged.bas?.quarterly) {
-      delete merged.bas.quarterly.q1;
-      delete merged.bas.quarterly.q2;
-      delete merged.bas.quarterly.q3;
-      delete merged.bas.quarterly.q4;
-    }
-    if (merged.ias?.quarterly) {
-      delete merged.ias.quarterly.q1;
-      delete merged.ias.quarterly.q2;
-      delete merged.ias.quarterly.q3;
-      delete merged.ias.quarterly.q4;
-    }
+    // (No longer needed, do not delete q1, q2, q3, q4)
     // Validate merged
     const { error } = deadlineSchema.validate(merged);
     if (error) {
