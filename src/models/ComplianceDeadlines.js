@@ -7,9 +7,10 @@ class ComplianceDeadlines {
   }
 
   static async update(deadlines) {
+    // Ensure deadlines is stored as JSONB
     const result = await db.query(
       `UPDATE compliance_deadlines SET deadlines = $1, updated_at = CURRENT_TIMESTAMP RETURNING *`,
-      [deadlines]
+      [JSON.stringify(deadlines)]
     );
     return result.rows.length ? result.rows[0].deadlines : null;
   }
