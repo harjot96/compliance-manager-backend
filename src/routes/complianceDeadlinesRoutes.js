@@ -4,7 +4,7 @@ const { getDeadlines, updateDeadlines } = require('../controllers/complianceDead
 const authMiddleware = require('../middleware/auth');
 const { requireSuperAdmin } = require('../middleware/auth');
 
-router.get('/', authMiddleware, getDeadlines);
-router.put('/', authMiddleware, requireSuperAdmin, updateDeadlines);
+router.get('/', getDeadlines); // Publicly accessible
+router.put('/', authMiddleware, requireSuperAdmin, updateDeadlines); // Only superadmin can update
 
 module.exports = router; 
