@@ -7,14 +7,10 @@ const deadlineSchema = Joi.object({
   bas: Joi.object({
     monthly: Joi.string().optional(),
     quarterly: Joi.object({
-      q1Start: Joi.string().pattern(datePattern).optional(),
-      q1End: Joi.string().pattern(datePattern).optional(),
-      q2Start: Joi.string().pattern(datePattern).optional(),
-      q2End: Joi.string().pattern(datePattern).optional(),
-      q3Start: Joi.string().pattern(datePattern).optional(),
-      q3End: Joi.string().pattern(datePattern).optional(),
-      q4Start: Joi.string().pattern(datePattern).optional(),
-      q4End: Joi.string().pattern(datePattern).optional()
+      q1: Joi.string().pattern(datePattern).optional(),
+      q2: Joi.string().pattern(datePattern).optional(),
+      q3: Joi.string().pattern(datePattern).optional(),
+      q4: Joi.string().pattern(datePattern).optional()
     }).optional()
   }).optional(),
   annual: Joi.object({
@@ -24,14 +20,10 @@ const deadlineSchema = Joi.object({
   ias: Joi.object({
     monthly: Joi.string().optional(),
     quarterly: Joi.object({
-      q1Start: Joi.string().pattern(datePattern).optional(),
-      q1End: Joi.string().pattern(datePattern).optional(),
-      q2Start: Joi.string().pattern(datePattern).optional(),
-      q2End: Joi.string().pattern(datePattern).optional(),
-      q3Start: Joi.string().pattern(datePattern).optional(),
-      q3End: Joi.string().pattern(datePattern).optional(),
-      q4Start: Joi.string().pattern(datePattern).optional(),
-      q4End: Joi.string().pattern(datePattern).optional()
+      q1: Joi.string().pattern(datePattern).optional(),
+      q2: Joi.string().pattern(datePattern).optional(),
+      q3: Joi.string().pattern(datePattern).optional(),
+      q4: Joi.string().pattern(datePattern).optional()
     }).optional()
   }).optional(),
   fbt: Joi.object({
