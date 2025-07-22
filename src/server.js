@@ -8,6 +8,7 @@ require('dotenv').config();
 
 const companyRoutes = require('./routes/companyRoutes');
 const cronjobSettingRoutes = require('./routes/cronjobSettingRoutes');
+const complianceDeadlinesRoutes = require('./routes/complianceDeadlinesRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -59,6 +60,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/companies', companyRoutes);
 app.use('/api/cronjob-settings', cronjobSettingRoutes);
+app.use('/api/compliance-deadlines', complianceDeadlinesRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

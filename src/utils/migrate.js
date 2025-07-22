@@ -137,6 +137,21 @@ const createTables = async () => {
       )
     `);
 
+    // Create compliance_deadlines table (single row, JSONB column)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS compliance_deadlines (
+        id SERIAL PRIMARY KEY,
+        deadlines JSONB NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // Ensure at least one row exists
+    await db.query(`
+      INSERT INTO compliance_deadlines (deadlines)
+      SELECT '{}'::jsonb
+      WHERE NOT EXISTS (SELECT 1 FROM compliance_deadlines)
+    `);
+
     console.log('Database tables created successfully');
   } catch (error) {
     console.error('Error creating tables:', error);
