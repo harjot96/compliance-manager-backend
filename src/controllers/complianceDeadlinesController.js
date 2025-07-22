@@ -1,14 +1,20 @@
 const Joi = require('joi');
 const ComplianceDeadlines = require('../models/ComplianceDeadlines');
 
+const datePattern = /^\d{2} [A-Z][a-z]{2} \d{4}$/; // DD MMM YYYY
+
 const deadlineSchema = Joi.object({
   bas: Joi.object({
     monthly: Joi.string().required(),
     quarterly: Joi.object({
-      q1: Joi.string().required(),
-      q2: Joi.string().required(),
-      q3: Joi.string().required(),
-      q4: Joi.string().required()
+      q1Start: Joi.string().pattern(datePattern).required(),
+      q1End: Joi.string().pattern(datePattern).required(),
+      q2Start: Joi.string().pattern(datePattern).required(),
+      q2End: Joi.string().pattern(datePattern).required(),
+      q3Start: Joi.string().pattern(datePattern).required(),
+      q3End: Joi.string().pattern(datePattern).required(),
+      q4Start: Joi.string().pattern(datePattern).required(),
+      q4End: Joi.string().pattern(datePattern).required()
     }).required()
   }).required(),
   annual: Joi.object({
@@ -18,10 +24,14 @@ const deadlineSchema = Joi.object({
   ias: Joi.object({
     monthly: Joi.string().required(),
     quarterly: Joi.object({
-      q1: Joi.string().required(),
-      q2: Joi.string().required(),
-      q3: Joi.string().required(),
-      q4: Joi.string().required()
+      q1Start: Joi.string().pattern(datePattern).required(),
+      q1End: Joi.string().pattern(datePattern).required(),
+      q2Start: Joi.string().pattern(datePattern).required(),
+      q2End: Joi.string().pattern(datePattern).required(),
+      q3Start: Joi.string().pattern(datePattern).required(),
+      q3End: Joi.string().pattern(datePattern).required(),
+      q4Start: Joi.string().pattern(datePattern).required(),
+      q4End: Joi.string().pattern(datePattern).required()
     }).required()
   }).required(),
   fbt: Joi.object({
@@ -43,11 +53,23 @@ const getDeadlines = async (req, res, next) => {
 
 const updateDeadlines = async (req, res, next) => {
   try {
-    const { error } = deadlineSchema.validate(req.body);
+    // Accept partial updates: merge with existing
+    const existing = await ComplianceDeadlines.get() || {};
+    const merged = { ...existing, ...req.body };
+    // Deep merge for nested objects
+    if (existing.bas && req.body.bas) merged.bas = { ...existing.bas, ...req.body.bas };
+    if (existing.ias && req.body.ias) merged.ias = { ...existing.ias, ...req.body.ias };
+    if (existing.bas?.quarterly && req.body.bas?.quarterly) merged.bas.quarterly = { ...existing.bas.quarterly, ...req.body.bas.quarterly };
+    if (existing.ias?.quarterly && req.body.ias?.quarterly) merged.ias.quarterly = { ...existing.ias.quarterly, ...req.body.ias.quarterly };
+    if (existing.annual && req.body.annual) merged.annual = { ...existing.annual, ...req.body.annual };
+    if (existing.fbt && req.body.fbt) merged.fbt = { ...existing.fbt, ...req.body.fbt };
+    if (existing.fbt?.annual && req.body.fbt?.annual) merged.fbt.annual = { ...existing.fbt.annual, ...req.body.fbt.annual };
+    // Validate merged
+    const { error } = deadlineSchema.validate(merged);
     if (error) {
       return res.status(400).json({ success: false, message: error.details[0].message });
     }
-    const updated = await ComplianceDeadlines.update(req.body);
+    const updated = await ComplianceDeadlines.update(merged);
     res.json({ success: true, message: 'Deadlines updated! All clients now see the new due‑dates.', data: updated });
   } catch (error) {
     next(error);
