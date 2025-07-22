@@ -19,7 +19,7 @@ const deadlineSchema = Joi.object({
   }).optional(),
   annual: Joi.object({
     standard: Joi.string().optional(),
-    noTaxReturn: Joi.string().optional()
+    noTaxReturn: Joi.string().allow('').optional() // Allow empty string
   }).optional(),
   ias: Joi.object({
     monthly: Joi.string().optional(),
