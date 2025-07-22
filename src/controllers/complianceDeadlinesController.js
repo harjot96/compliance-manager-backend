@@ -64,6 +64,19 @@ const updateDeadlines = async (req, res, next) => {
     if (existing.annual && req.body.annual) merged.annual = { ...existing.annual, ...req.body.annual };
     if (existing.fbt && req.body.fbt) merged.fbt = { ...existing.fbt, ...req.body.fbt };
     if (existing.fbt?.annual && req.body.fbt?.annual) merged.fbt.annual = { ...existing.fbt.annual, ...req.body.fbt.annual };
+    // Remove old keys from quarterly if present
+    if (merged.bas?.quarterly) {
+      delete merged.bas.quarterly.q1;
+      delete merged.bas.quarterly.q2;
+      delete merged.bas.quarterly.q3;
+      delete merged.bas.quarterly.q4;
+    }
+    if (merged.ias?.quarterly) {
+      delete merged.ias.quarterly.q1;
+      delete merged.ias.quarterly.q2;
+      delete merged.ias.quarterly.q3;
+      delete merged.ias.quarterly.q4;
+    }
     // Validate merged
     const { error } = deadlineSchema.validate(merged);
     if (error) {
