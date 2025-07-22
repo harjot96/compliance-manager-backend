@@ -5,41 +5,41 @@ const datePattern = /^\d{2} [A-Z][a-z]{2} \d{4}$/; // DD MMM YYYY
 
 const deadlineSchema = Joi.object({
   bas: Joi.object({
-    monthly: Joi.string().required(),
+    monthly: Joi.string().optional(),
     quarterly: Joi.object({
-      q1Start: Joi.string().pattern(datePattern).required(),
-      q1End: Joi.string().pattern(datePattern).required(),
-      q2Start: Joi.string().pattern(datePattern).required(),
-      q2End: Joi.string().pattern(datePattern).required(),
-      q3Start: Joi.string().pattern(datePattern).required(),
-      q3End: Joi.string().pattern(datePattern).required(),
-      q4Start: Joi.string().pattern(datePattern).required(),
-      q4End: Joi.string().pattern(datePattern).required()
-    }).required()
-  }).required(),
+      q1Start: Joi.string().pattern(datePattern).optional(),
+      q1End: Joi.string().pattern(datePattern).optional(),
+      q2Start: Joi.string().pattern(datePattern).optional(),
+      q2End: Joi.string().pattern(datePattern).optional(),
+      q3Start: Joi.string().pattern(datePattern).optional(),
+      q3End: Joi.string().pattern(datePattern).optional(),
+      q4Start: Joi.string().pattern(datePattern).optional(),
+      q4End: Joi.string().pattern(datePattern).optional()
+    }).optional()
+  }).optional(),
   annual: Joi.object({
-    standard: Joi.string().required(),
-    noTaxReturn: Joi.string().required()
-  }).required(),
+    standard: Joi.string().optional(),
+    noTaxReturn: Joi.string().optional()
+  }).optional(),
   ias: Joi.object({
-    monthly: Joi.string().required(),
+    monthly: Joi.string().optional(),
     quarterly: Joi.object({
-      q1Start: Joi.string().pattern(datePattern).required(),
-      q1End: Joi.string().pattern(datePattern).required(),
-      q2Start: Joi.string().pattern(datePattern).required(),
-      q2End: Joi.string().pattern(datePattern).required(),
-      q3Start: Joi.string().pattern(datePattern).required(),
-      q3End: Joi.string().pattern(datePattern).required(),
-      q4Start: Joi.string().pattern(datePattern).required(),
-      q4End: Joi.string().pattern(datePattern).required()
-    }).required()
-  }).required(),
+      q1Start: Joi.string().pattern(datePattern).optional(),
+      q1End: Joi.string().pattern(datePattern).optional(),
+      q2Start: Joi.string().pattern(datePattern).optional(),
+      q2End: Joi.string().pattern(datePattern).optional(),
+      q3Start: Joi.string().pattern(datePattern).optional(),
+      q3End: Joi.string().pattern(datePattern).optional(),
+      q4Start: Joi.string().pattern(datePattern).optional(),
+      q4End: Joi.string().pattern(datePattern).optional()
+    }).optional()
+  }).optional(),
   fbt: Joi.object({
     annual: Joi.object({
-      selfLodgement: Joi.string().required(),
-      taxAgentElectronic: Joi.string().required()
-    }).required()
-  }).required()
+      selfLodgement: Joi.string().optional(),
+      taxAgentElectronic: Joi.string().optional()
+    }).optional()
+  }).optional()
 });
 
 const getDeadlines = async (req, res, next) => {
