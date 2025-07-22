@@ -7,9 +7,9 @@ class ComplianceDeadlines {
   }
 
   static async update(deadlines) {
-    // Always update the row with id = 1
+    // Always update the row with id = 3
     const result = await db.query(
-      `UPDATE compliance_deadlines SET deadlines = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1 RETURNING *`,
+      `UPDATE compliance_deadlines SET deadlines = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 3 RETURNING *`,
       [JSON.stringify(deadlines)]
     );
     return result.rows.length ? result.rows[0].deadlines : null;
