@@ -58,6 +58,8 @@ const updateDeadlines = async (req, res, next) => {
     if (existing.fbt?.annual && req.body.fbt?.annual) merged.fbt.annual = { ...existing.fbt.annual, ...req.body.fbt.annual };
     // Remove old keys from quarterly if present
     // (No longer needed, do not delete q1, q2, q3, q4)
+    // Add debug log before validation and saving
+    console.log('Saving deadlines:', JSON.stringify(merged, null, 2));
     // Validate merged
     const { error } = deadlineSchema.validate(merged);
     if (error) {
