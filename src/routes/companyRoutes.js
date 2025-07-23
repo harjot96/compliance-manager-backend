@@ -104,6 +104,16 @@ router.put('/:companyId', authMiddleware, requireSuperAdmin, validateRequest(sup
 // Allow all authenticated users to get company information by ID
 router.get('/:companyId', authMiddleware, companyController.getCompanyById);
 
+// Allow all authenticated users to fetch notification settings
+router.get('/notification-settings', authMiddleware, async (req, res, next) => {
+  try {
+    const settings = await NotificationSetting.getAll();
+    res.status(200).json({ success: true, data: settings.map(s => s.toJSON()) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Endpoint for companies to fetch compliance deadlines data set by superadmin
 router.get('/compliance-deadlines', authMiddleware, async (req, res, next) => {
   try {
