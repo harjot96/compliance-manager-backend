@@ -69,16 +69,17 @@ router.get('/settings/:type', authMiddleware, requireSuperAdmin, notificationSet
 router.put('/settings/:id', authMiddleware, requireSuperAdmin, notificationSettingController.updateSetting);
 router.delete('/settings/:id', authMiddleware, requireSuperAdmin, notificationSettingController.deleteSetting);
 
-// Super Admin: Save notification settings for BAS, FBT, IAS, FED, etc.
+// RECREATED: Super Admin: Save notification settings for BAS, FBT, IAS, FED, etc.
 router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (req, res, next) => {
   try {
+    // Debug logs
     console.log('DEBUG /notification-settings headers:', req.headers);
     console.log('DEBUG /notification-settings typeof req.body:', typeof req.body, 'value:', req.body);
-    let body = req.body;
-    // If body is a string (stringified JSON), parse it
-    if (typeof body === 'string') {
+    let settingsArray = req.body;
+    // If body is a string, parse it
+    if (typeof settingsArray === 'string') {
       try {
-        body = JSON.parse(body);
+        settingsArray = JSON.parse(settingsArray);
       } catch (parseErr) {
         return res.status(400).json({
           success: false,
@@ -88,11 +89,11 @@ router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (
       }
     }
     // If body is an object with a 'settings' property, use that
-    if (body && typeof body === 'object' && Array.isArray(body.settings)) {
-      body = body.settings;
+    if (settingsArray && typeof settingsArray === 'object' && Array.isArray(settingsArray.settings)) {
+      settingsArray = settingsArray.settings;
     }
-    // Validate request body as array of notification settings
-    const { error } = notificationSettingsArraySchema.validate(body);
+    // Validate as array of notification settings
+    const { error } = notificationSettingsArraySchema.validate(settingsArray);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -103,11 +104,9 @@ router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (
         }))
       });
     }
-    const settings = body;
     // Save each setting (upsert by type)
     const results = [];
-    for (const setting of settings) {
-      // Upsert by type
+    for (const setting of settingsArray) {
       const saved = await NotificationSetting.upsertByType(setting.type, setting);
       results.push(saved);
     }
