@@ -87,6 +87,10 @@ router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (
         });
       }
     }
+    // If body is an object with a 'settings' property, use that
+    if (body && typeof body === 'object' && Array.isArray(body.settings)) {
+      body = body.settings;
+    }
     // Validate request body as array of notification settings
     const { error } = notificationSettingsArraySchema.validate(body);
     if (error) {
