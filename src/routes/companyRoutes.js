@@ -15,6 +15,20 @@ const notificationTemplateController = require('../controllers/notificationTempl
 const notificationSettingController = require('../controllers/notificationSettingController');
 const ComplianceDeadlines = require('../models/ComplianceDeadlines');
 const NotificationSetting = require('../models/NotificationSetting');
+const Joi = require('joi');
+
+const notificationSettingSchema = Joi.object({
+  type: Joi.string().required(),
+  sms: Joi.object({
+    enabled: Joi.boolean().required(),
+    days: Joi.array().items(Joi.number()).required()
+  }).required(),
+  email: Joi.object({
+    enabled: Joi.boolean().required(),
+    days: Joi.array().items(Joi.number()).required()
+  }).required()
+});
+const notificationSettingsArraySchema = Joi.array().items(notificationSettingSchema);
 
 // Public routes
 router.post('/register', validateRequest(registrationSchema), companyController.register);
@@ -58,11 +72,19 @@ router.delete('/settings/:id', authMiddleware, requireSuperAdmin, notificationSe
 // Super Admin: Save notification settings for BAS, FBT, IAS, FED, etc.
 router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (req, res, next) => {
   try {
-    // Expecting an array of settings in req.body
-    const settings = req.body;
-    if (!Array.isArray(settings)) {
-      return res.status(400).json({ success: false, message: 'Request body must be an array of settings.' });
+    // Validate request body as array of notification settings
+    const { error } = notificationSettingsArraySchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: error.details.map(detail => ({
+          field: detail.path.join('.'),
+          message: detail.message
+        }))
+      });
     }
+    const settings = req.body;
     // Save each setting (upsert by type)
     const results = [];
     for (const setting of settings) {
