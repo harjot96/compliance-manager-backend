@@ -75,10 +75,11 @@ class NotificationSetting {
   }
 
   toJSON() {
+    // Flatten config so that type, sms, and email are at the top level
     return {
       id: this.id,
       type: this.type,
-      config: this.config,
+      ...this.config, // sms and email will be at the top level
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
     };
