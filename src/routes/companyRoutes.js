@@ -56,7 +56,7 @@ router.delete('/settings/:id', authMiddleware, requireSuperAdmin, notificationSe
 // Super Admin: Edit any company
 router.put('/:companyId', authMiddleware, requireSuperAdmin, validateRequest(superAdminCompanyUpdateSchema), companyController.editCompany);
 
-// Super Admin: Get company information by ID
-router.get('/:companyId', authMiddleware, requireSuperAdmin, companyController.getCompanyById);
+// Allow all authenticated users to get company information by ID
+router.get('/:companyId', authMiddleware, companyController.getCompanyById);
 
 module.exports = router;
