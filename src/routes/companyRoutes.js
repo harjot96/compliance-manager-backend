@@ -14,6 +14,7 @@ const { isSuperAdmin, requireSuperAdmin } = require('../middleware/auth');
 const notificationTemplateController = require('../controllers/notificationTemplateController');
 const notificationSettingController = require('../controllers/notificationSettingController');
 const ComplianceDeadlines = require('../models/ComplianceDeadlines');
+const NotificationSetting = require('../models/NotificationSetting');
 
 // Public routes
 router.post('/register', validateRequest(registrationSchema), companyController.register);
@@ -53,6 +54,27 @@ router.get('/settings', authMiddleware, requireSuperAdmin, notificationSettingCo
 router.get('/settings/:type', authMiddleware, requireSuperAdmin, notificationSettingController.getSettingByType);
 router.put('/settings/:id', authMiddleware, requireSuperAdmin, notificationSettingController.updateSetting);
 router.delete('/settings/:id', authMiddleware, requireSuperAdmin, notificationSettingController.deleteSetting);
+
+// Super Admin: Save notification settings for BAS, FBT, IAS, FED, etc.
+router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (req, res, next) => {
+  try {
+    // Expecting an array of settings in req.body
+    const settings = req.body;
+    if (!Array.isArray(settings)) {
+      return res.status(400).json({ success: false, message: 'Request body must be an array of settings.' });
+    }
+    // Save each setting (upsert by type)
+    const results = [];
+    for (const setting of settings) {
+      // Upsert by type
+      const saved = await NotificationSetting.upsertByType(setting.type, setting);
+      results.push(saved);
+    }
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Super Admin: Edit any company
 router.put('/:companyId', authMiddleware, requireSuperAdmin, validateRequest(superAdminCompanyUpdateSchema), companyController.editCompany);

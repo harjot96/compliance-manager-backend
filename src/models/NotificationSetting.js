@@ -54,6 +54,26 @@ class NotificationSetting {
     return result.rows.length ? new NotificationSetting(result.rows[0]) : null;
   }
 
+  // Upsert by type (BAS, FBT, IAS, FED, etc.)
+  static async upsertByType(type, setting) {
+    // Remove type from config to avoid duplication
+    const config = { ...setting };
+    delete config.type;
+    // Check if a setting for this type exists
+    const existing = await NotificationSetting.getByType(type);
+    if (existing) {
+      // Update
+      const query = `UPDATE notification_settings SET config = $1, updated_at = CURRENT_TIMESTAMP WHERE type = $2 RETURNING *`;
+      const result = await db.query(query, [config, type]);
+      return result.rows.length ? new NotificationSetting(result.rows[0]) : null;
+    } else {
+      // Insert
+      const query = `INSERT INTO notification_settings (type, config) VALUES ($1, $2) RETURNING *`;
+      const result = await db.query(query, [type, config]);
+      return new NotificationSetting(result.rows[0]);
+    }
+  }
+
   toJSON() {
     return {
       id: this.id,
