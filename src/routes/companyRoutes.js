@@ -13,6 +13,7 @@ const {
 const { isSuperAdmin, requireSuperAdmin } = require('../middleware/auth');
 const notificationTemplateController = require('../controllers/notificationTemplateController');
 const notificationSettingController = require('../controllers/notificationSettingController');
+const ComplianceDeadlines = require('../models/ComplianceDeadlines');
 
 // Public routes
 router.post('/register', validateRequest(registrationSchema), companyController.register);
@@ -58,5 +59,15 @@ router.put('/:companyId', authMiddleware, requireSuperAdmin, validateRequest(sup
 
 // Allow all authenticated users to get company information by ID
 router.get('/:companyId', authMiddleware, companyController.getCompanyById);
+
+// Endpoint for companies to fetch compliance deadlines data set by superadmin
+router.get('/compliance-deadlines', authMiddleware, async (req, res, next) => {
+  try {
+    const deadlines = await ComplianceDeadlines.get();
+    res.json({ success: true, data: deadlines });
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;
