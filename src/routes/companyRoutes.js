@@ -72,8 +72,21 @@ router.delete('/settings/:id', authMiddleware, requireSuperAdmin, notificationSe
 // Super Admin: Save notification settings for BAS, FBT, IAS, FED, etc.
 router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (req, res, next) => {
   try {
+    let body = req.body;
+    // If body is a string (stringified JSON), parse it
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (parseErr) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid JSON string in request body',
+          errors: [{ field: '', message: parseErr.message }]
+        });
+      }
+    }
     // Validate request body as array of notification settings
-    const { error } = notificationSettingsArraySchema.validate(req.body);
+    const { error } = notificationSettingsArraySchema.validate(body);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -84,7 +97,7 @@ router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (
         }))
       });
     }
-    const settings = req.body;
+    const settings = body;
     // Save each setting (upsert by type)
     const results = [];
     for (const setting of settings) {
