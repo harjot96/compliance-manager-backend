@@ -30,6 +30,75 @@ const notificationSettingSchema = Joi.object({
 });
 const notificationSettingsArraySchema = Joi.array().items(notificationSettingSchema);
 
+// RECREATED: Super Admin: Save notification settings for BAS, FBT, IAS, FED, etc.
+router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (req, res, next) => {
+  try {
+    // Debug logs
+    console.log('DEBUG /notification-settings headers:', req.headers);
+    console.log('DEBUG /notification-settings typeof req.body:', typeof req.body, 'value:', req.body);
+    let settingsArray = req.body;
+    debugger
+    // If body is a string, parse it
+    if (typeof settingsArray === 'string') {
+      try {
+        settingsArray = JSON.parse(settingsArray);
+      } catch (parseErr) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid JSON string in request body',
+          errors: [{ field: '', message: parseErr.message }]
+        });
+      }
+    }
+    // If body is an object with a 'settings' property, use that
+    if (settingsArray && typeof settingsArray === 'object' && Array.isArray(settingsArray.settings)) {
+      settingsArray = settingsArray.settings;
+    }
+    // Validate as array of notification settings
+    const { error } = notificationSettingsArraySchema.validate(settingsArray);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: error.details.map(detail => ({
+          field: detail.path.join('.'),
+          message: detail.message
+        }))
+      });
+    }
+    // Save each setting in cronjob_settings
+    const results = [];
+    for (const setting of settingsArray) {
+      // Map fields: type, durationDays, enabled
+      const type = setting.type;
+      // Use the first day in sms.days or email.days as durationDays, or default to 0
+      let durationDays = 0;
+      if (setting.sms && Array.isArray(setting.sms.days) && setting.sms.days.length > 0) {
+        durationDays = setting.sms.days[0];
+      } else if (setting.email && Array.isArray(setting.email.days) && setting.email.days.length > 0) {
+        durationDays = setting.email.days[0];
+      }
+      // Use sms.enabled or email.enabled as enabled (true if either is true)
+      const enabled = (setting.sms && setting.sms.enabled) || (setting.email && setting.email.enabled) || false;
+      // Debug log
+      console.log('Saving to cronjob_settings:', { type, durationDays, enabled });
+      // Validate fields
+      if (typeof type !== 'string' || typeof durationDays !== 'number' || typeof enabled !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid field value',
+          details: { type, durationDays, enabled }
+        });
+      }
+      const saved = await require('../models/CronjobSetting').create({ type, durationDays, enabled });
+      results.push(saved);
+    }
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Public routes
 router.post('/register', validateRequest(registrationSchema), companyController.register);
 router.post('/login', validateRequest(loginSchema), companyController.login);
@@ -68,53 +137,6 @@ router.get('/settings', authMiddleware, requireSuperAdmin, notificationSettingCo
 router.get('/settings/:type', authMiddleware, requireSuperAdmin, notificationSettingController.getSettingByType);
 router.put('/settings/:id', authMiddleware, requireSuperAdmin, notificationSettingController.updateSetting);
 router.delete('/settings/:id', authMiddleware, requireSuperAdmin, notificationSettingController.deleteSetting);
-
-// RECREATED: Super Admin: Save notification settings for BAS, FBT, IAS, FED, etc.
-router.post('/notification-settings', authMiddleware, requireSuperAdmin, async (req, res, next) => {
-  try {
-    // Debug logs
-    console.log('DEBUG /notification-settings headers:', req.headers);
-    console.log('DEBUG /notification-settings typeof req.body:', typeof req.body, 'value:', req.body);
-    let settingsArray = req.body;
-    // If body is a string, parse it
-    if (typeof settingsArray === 'string') {
-      try {
-        settingsArray = JSON.parse(settingsArray);
-      } catch (parseErr) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid JSON string in request body',
-          errors: [{ field: '', message: parseErr.message }]
-        });
-      }
-    }
-    // If body is an object with a 'settings' property, use that
-    if (settingsArray && typeof settingsArray === 'object' && Array.isArray(settingsArray.settings)) {
-      settingsArray = settingsArray.settings;
-    }
-    // Validate as array of notification settings
-    const { error } = notificationSettingsArraySchema.validate(settingsArray);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation error',
-        errors: error.details.map(detail => ({
-          field: detail.path.join('.'),
-          message: detail.message
-        }))
-      });
-    }
-    // Save each setting (upsert by type)
-    const results = [];
-    for (const setting of settingsArray) {
-      const saved = await NotificationSetting.upsertByType(setting.type, setting);
-      results.push(saved);
-    }
-    res.status(200).json({ success: true, data: results });
-  } catch (error) {
-    next(error);
-  }
-});
 
 // Super Admin: Edit any company
 router.put('/:companyId', authMiddleware, requireSuperAdmin, validateRequest(superAdminCompanyUpdateSchema), companyController.editCompany);
