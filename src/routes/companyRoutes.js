@@ -1,11 +1,19 @@
 const express = require('express');
 const router = express.Router();
+const notificationTemplateController = require('../controllers/notificationTemplateController');
 
 // Simple test routes
 router.get('/test', (req, res) => {
   console.log('🎯 TEST ROUTE HIT');
   res.json({ success: true, message: 'Test route works!' });
 });
+
+// Template routes
+router.post('/templates', notificationTemplateController.createTemplate);
+router.get('/templates', notificationTemplateController.getAllTemplates);
+router.get('/templates/:id', notificationTemplateController.getTemplateById);
+router.put('/templates/:id', notificationTemplateController.updateTemplate);
+router.delete('/templates/:id', notificationTemplateController.deleteTemplate);
 
 router.get('/notification-settings', async (req, res) => {
   try {
