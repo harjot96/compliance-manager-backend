@@ -6,6 +6,7 @@ const companyController = require('../controllers/companyController');
 
 // Add /settings and /all routes
 router.get('/settings', notificationSettingController.getAllSettings);
+router.post('/settings', notificationSettingController.createSetting);
 router.get('/all', companyController.getAllCompaniesNoPagination);
 
 // Simple test routes

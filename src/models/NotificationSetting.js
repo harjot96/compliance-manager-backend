@@ -79,7 +79,20 @@ class NotificationSetting {
     const result = await db.query(
       "SELECT config FROM notification_settings WHERE type = 'twilio' LIMIT 1"
     );
-    if (result.rows.length === 0) return null;
+    if (result.rows.length === 0) {
+      // Fall back to environment variables
+      const envConfig = {
+        accountSid: process.env.TWILIO_ACCOUNT_SID,
+        authToken: process.env.TWILIO_AUTH_TOKEN,
+        phoneNumber: process.env.TWILIO_PHONE_NUMBER
+      };
+      
+      // Only return if all required fields are present
+      if (envConfig.accountSid && envConfig.authToken && envConfig.phoneNumber) {
+        return envConfig;
+      }
+      return null;
+    }
     return result.rows[0].config; // Should contain { accountSid, authToken, phoneNumber }
   }
 
