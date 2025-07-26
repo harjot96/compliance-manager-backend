@@ -84,11 +84,11 @@ class NotificationSetting {
       const envConfig = {
         accountSid: process.env.TWILIO_ACCOUNT_SID,
         authToken: process.env.TWILIO_AUTH_TOKEN,
-        phoneNumber: process.env.TWILIO_PHONE_NUMBER
+        fromNumber: process.env.TWILIO_PHONE_NUMBER
       };
       
       // Only return if all required fields are present
-      if (envConfig.accountSid && envConfig.authToken && envConfig.phoneNumber) {
+      if (envConfig.accountSid && envConfig.authToken && envConfig.fromNumber) {
         return envConfig;
       }
       return null;

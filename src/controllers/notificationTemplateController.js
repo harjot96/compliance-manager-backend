@@ -182,14 +182,14 @@ const testTemplate = async (req, res, next) => {
       }
       // Fetch Twilio credentials from admin settings
       const twilioConfig = await NotificationSetting.getTwilioSettings();
-      if (!twilioConfig || !twilioConfig.accountSid || !twilioConfig.authToken || !twilioConfig.phoneNumber) {
+      if (!twilioConfig || !twilioConfig.accountSid || !twilioConfig.authToken || !twilioConfig.fromNumber) {
         return res.status(500).json({ success: false, message: 'Twilio settings not configured by admin.' });
       }
       const twilioClient = require('twilio')(twilioConfig.accountSid, twilioConfig.authToken);
       try {
         const twilioResult = await twilioClient.messages.create({
           body: message,
-          from: twilioConfig.phoneNumber,
+          from: twilioConfig.fromNumber,
           to: company.mobileNumber
         });
         sendResult.sent = true;
