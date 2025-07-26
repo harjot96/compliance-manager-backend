@@ -68,4 +68,7 @@ router.post('/notification-settings', async (req, res) => {
 // Get company by ID route
 router.get('/:companyId', companyController.getCompanyById);
 
+// Update company by ID route
+router.put('/:companyId', companyController.editCompany);
+
 module.exports = router;
