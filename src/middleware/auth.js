@@ -59,9 +59,13 @@ const isSuperAdmin = (req, res, next) => {
 
 // Middleware to require superadmin role (for route protection)
 const requireSuperAdmin = (req, res, next) => {
+  console.log('DEBUG requireSuperAdmin - req.company:', req.company);
+  console.log('DEBUG requireSuperAdmin - req.company.role:', req.company?.role);
   if (req.company && req.company.role === 'superadmin') {
+    console.log('DEBUG requireSuperAdmin - Access granted');
     return next();
   }
+  console.log('DEBUG requireSuperAdmin - Access denied');
   return res.status(403).json({
     success: false,
     message: 'Unauthorized: Super Admins only.'
