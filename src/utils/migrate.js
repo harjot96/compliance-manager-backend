@@ -192,6 +192,24 @@ const addRoleColumn = async () => {
   }
 };
 
+const runMigrations = async () => {
+  try {
+    console.log('Running migrations...');
+    
+    // Add columns to notification_templates if they don't exist
+    await db.query(`
+      ALTER TABLE notification_templates 
+      ADD COLUMN IF NOT EXISTS notification_types JSONB DEFAULT '[]',
+      ADD COLUMN IF NOT EXISTS sms_days JSONB DEFAULT '[]',
+      ADD COLUMN IF NOT EXISTS email_days JSONB DEFAULT '[]';
+    `);
+    
+    console.log('Migrations completed successfully');
+  } catch (error) {
+    console.error('Migration error:', error);
+  }
+};
+
 // Run migration if this file is executed directly
 if (require.main === module) {
   const action = process.argv[2];
@@ -204,6 +222,10 @@ if (require.main === module) {
     addRoleColumn()
       .then(() => process.exit(0))
       .catch(() => process.exit(1));
+  } else if (action === 'runMigrations') {
+    runMigrations()
+      .then(() => process.exit(0))
+      .catch(() => process.exit(1));
   } else {
     createTables()
       .then(() => process.exit(0))
@@ -211,4 +233,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { createTables, dropTables, addRoleColumn };
+module.exports = { createTables, dropTables, addRoleColumn, runMigrations };

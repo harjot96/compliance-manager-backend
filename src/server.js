@@ -10,8 +10,12 @@ const companyRoutes = require('./routes/companyRoutes');
 const cronjobSettingRoutes = require('./routes/cronjobSettingRoutes');
 const complianceDeadlinesRoutes = require('./routes/complianceDeadlinesRoutes');
 const errorHandler = require('./middleware/errorHandler');
+const { runMigrations } = require('./utils/migrate');
 
 const app = express();
+
+// Run migrations on startup
+runMigrations().catch(console.error);
 
 // Security middleware
 app.use(helmet());
