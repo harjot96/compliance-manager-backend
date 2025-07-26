@@ -74,6 +74,15 @@ class NotificationSetting {
     }
   }
 
+  // Fetch Twilio settings from notification_settings table
+  static async getTwilioSettings() {
+    const result = await db.query(
+      "SELECT config FROM notification_settings WHERE type = 'twilio' LIMIT 1"
+    );
+    if (result.rows.length === 0) return null;
+    return result.rows[0].config; // Should contain { accountSid, authToken, phoneNumber }
+  }
+
   toJSON() {
     // Flatten config so that type, sms, and email are at the top level
     return {

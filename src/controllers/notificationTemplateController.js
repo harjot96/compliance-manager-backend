@@ -1,4 +1,10 @@
 const NotificationTemplate = require('../models/NotificationTemplate');
+const twilio = require('twilio');
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+const twilioClient = twilio(accountSid, authToken);
+const NotificationSetting = require('../models/NotificationSetting');
 
 // Create a new template
 const createTemplate = async (req, res, next) => {
@@ -141,10 +147,71 @@ const deleteTemplate = async (req, res, next) => {
   }
 };
 
+// Test a template by sending to a company
+const testTemplate = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { companyId, channel, testData } = req.body;
+    if (!companyId || !channel || !['sms', 'email'].includes(channel)) {
+      return res.status(400).json({ success: false, message: 'companyId and valid channel (sms/email) are required' });
+    }
+    // Fetch template
+    const template = await NotificationTemplate.getById(id);
+    if (!template) {
+      return res.status(404).json({ success: false, message: 'Template not found' });
+    }
+    // Fetch company
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
+    // Prepare message
+    let message = template.body;
+    // Replace placeholders with testData or company data
+    if (testData && typeof testData === 'object') {
+      for (const [key, value] of Object.entries(testData)) {
+        message = message.replace(new RegExp(`{${key}}`, 'g'), value);
+      }
+    }
+    // Send SMS via Twilio if channel is sms
+    let sendResult = { sent: false, channel, to: company.email || company.phone, preview: message };
+    if (channel === 'sms') {
+      if (!company.phone) {
+        return res.status(400).json({ success: false, message: 'Company does not have a phone number.' });
+      }
+      // Fetch Twilio credentials from admin settings
+      const twilioConfig = await NotificationSetting.getTwilioSettings();
+      if (!twilioConfig || !twilioConfig.accountSid || !twilioConfig.authToken || !twilioConfig.phoneNumber) {
+        return res.status(500).json({ success: false, message: 'Twilio settings not configured by admin.' });
+      }
+      const twilioClient = require('twilio')(twilioConfig.accountSid, twilioConfig.authToken);
+      try {
+        const twilioResult = await twilioClient.messages.create({
+          body: message,
+          from: twilioConfig.phoneNumber,
+          to: company.phone
+        });
+        sendResult.sent = true;
+        sendResult.twilioSid = twilioResult.sid;
+        sendResult.to = company.phone;
+      } catch (twilioError) {
+        return res.status(500).json({ success: false, message: 'Twilio SMS send failed', error: twilioError.message });
+      }
+    } else {
+      // Simulate email send (or integrate real email logic here)
+      sendResult.sent = true;
+    }
+    res.json({ success: true, message: channel === 'sms' ? 'SMS sent via Twilio' : 'Test message sent (simulated)', data: sendResult });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createTemplate,
   updateTemplate,
   getTemplateById,
   getAllTemplates,
-  deleteTemplate
+  deleteTemplate,
+  testTemplate
 }; 

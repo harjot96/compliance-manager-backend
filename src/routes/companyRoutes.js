@@ -14,6 +14,8 @@ router.get('/templates', notificationTemplateController.getAllTemplates);
 router.get('/templates/:id', notificationTemplateController.getTemplateById);
 router.put('/templates/:id', notificationTemplateController.updateTemplate);
 router.delete('/templates/:id', notificationTemplateController.deleteTemplate);
+// Test template route
+router.post('/templates/:id/test', notificationTemplateController.testTemplate);
 
 router.get('/notification-settings', async (req, res) => {
   try {
