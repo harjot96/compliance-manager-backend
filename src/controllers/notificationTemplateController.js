@@ -175,9 +175,9 @@ const testTemplate = async (req, res, next) => {
       }
     }
     // Send SMS via Twilio if channel is sms
-    let sendResult = { sent: false, channel, to: company.email || company.phone, preview: message };
+    let sendResult = { sent: false, channel, to: company.email || company.mobileNumber, preview: message };
     if (channel === 'sms') {
-      if (!company.phone) {
+      if (!company.mobileNumber) {
         return res.status(400).json({ success: false, message: 'Company does not have a phone number.' });
       }
       // Fetch Twilio credentials from admin settings
@@ -190,11 +190,11 @@ const testTemplate = async (req, res, next) => {
         const twilioResult = await twilioClient.messages.create({
           body: message,
           from: twilioConfig.phoneNumber,
-          to: company.phone
+          to: company.mobileNumber
         });
         sendResult.sent = true;
         sendResult.twilioSid = twilioResult.sid;
-        sendResult.to = company.phone;
+        sendResult.to = company.mobileNumber;
       } catch (twilioError) {
         return res.status(500).json({ success: false, message: 'Twilio SMS send failed', error: twilioError.message });
       }
