@@ -1,6 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const notificationTemplateController = require('../controllers/notificationTemplateController');
+const notificationSettingController = require('../controllers/notificationSettingController');
+const companyController = require('../controllers/companyController');
+
+// Add /settings and /all routes
+router.get('/settings', notificationSettingController.getAllSettings);
+router.get('/all', companyController.getAllCompaniesNoPagination);
 
 // Simple test routes
 router.get('/test', (req, res) => {

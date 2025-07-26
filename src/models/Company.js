@@ -110,6 +110,13 @@ class Company {
     return result.rows.map(row => new Company(row));
   }
 
+  // Get all companies (excluding superadmins) with no pagination
+  static async getAllNoPagination() {
+    const query = "SELECT * FROM companies WHERE role != 'superadmin' ORDER BY created_at DESC";
+    const result = await db.query(query);
+    return result.rows.map(row => new Company(row));
+  }
+
   // Convert to JSON (exclude sensitive data)
   toJSON() {
     return {

@@ -182,6 +182,19 @@ const getAllCompanies = async (req, res, next) => {
   }
 };
 
+// Get all companies (no pagination, excluding superadmins)
+const getAllCompaniesNoPagination = async (req, res, next) => {
+  try {
+    const companies = await Company.getAllNoPagination();
+    res.status(200).json({
+      success: true,
+      data: companies.map(company => company.toJSON())
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Get compliance details for any company (Super Admin only)
 const getComplianceDetailsByCompanyId = async (req, res, next) => {
   try {
@@ -280,5 +293,6 @@ module.exports = {
   editCompany, // Export edit company
   setCompanyActiveStatus, // Export activate/deactivate
   getCompanyById, // Export new getCompanyById
+  getAllCompaniesNoPagination,
 };
 
