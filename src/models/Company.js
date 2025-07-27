@@ -18,7 +18,10 @@ class Company {
 
   // Create a new company
   static async create(companyData) {
-    const { companyName, email, mobileNumber, countryCode, password, role } = companyData;
+    const { name, companyName, email, mobileNumber, countryCode, password, role } = companyData;
+    
+    // Use name if provided, otherwise use companyName
+    const finalCompanyName = name || companyName;
     
     // Hash password
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 12;
@@ -30,7 +33,7 @@ class Company {
       RETURNING *
     `;
     
-    const result = await db.query(query, [companyName, email, mobileNumber, countryCode || '+61', passwordHash, role || 'company']);
+    const result = await db.query(query, [finalCompanyName, email, mobileNumber, countryCode || '+61', passwordHash, role || 'company']);
     return new Company(result.rows[0]);
   }
 
@@ -66,7 +69,11 @@ class Company {
 
   // Update company profile
   static async updateProfile(id, profileData, includeInactive = false) {
-    const { companyName, email, mobileNumber, countryCode } = profileData;
+    const { name, companyName, email, mobileNumber, countryCode } = profileData;
+    
+    // Use name if provided, otherwise use companyName
+    const finalCompanyName = name || companyName;
+    
     const query = includeInactive
       ? `UPDATE companies 
            SET company_name = $1, email = $2, mobile_number = $3, country_code = $4
@@ -76,7 +83,7 @@ class Company {
            SET company_name = $1, email = $2, mobile_number = $3, country_code = $4
            WHERE id = $5 AND is_active = TRUE
            RETURNING *`;
-    const result = await db.query(query, [companyName, email, mobileNumber, countryCode || '+61', id]);
+    const result = await db.query(query, [finalCompanyName, email, mobileNumber, countryCode || '+61', id]);
     if (result.rows.length === 0) {
       return null;
     }
