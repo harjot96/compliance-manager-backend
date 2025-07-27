@@ -4,6 +4,11 @@ const notificationTemplateController = require('../controllers/notificationTempl
 const notificationSettingController = require('../controllers/notificationSettingController');
 const companyController = require('../controllers/companyController');
 
+// Authentication routes
+router.post('/register', companyController.register);
+router.post('/login', companyController.login);
+router.post('/register-super-admin', companyController.registerSuperAdmin);
+
 // Add /settings and /all routes
 router.get('/settings', notificationSettingController.getAllSettings);
 router.post('/settings', notificationSettingController.createSetting);
@@ -13,6 +18,10 @@ router.get('/all', companyController.getAllCompaniesNoPagination);
 router.get('/test', (req, res) => {
   console.log('🎯 TEST ROUTE HIT');
   res.json({ success: true, message: 'Test route works!' });
+});
+
+router.get('/health', (req, res) => {
+  res.json({ success: true, message: 'Company routes are working!' });
 });
 
 // Template routes
@@ -66,10 +75,22 @@ router.post('/notification-settings', async (req, res) => {
   });
 });
 
-// Get company by ID route
-router.get('/:companyId', companyController.getCompanyById);
+// Protected routes (require authentication)
+const auth = require('../middleware/auth');
 
-// Update company by ID route
+// Profile and compliance routes (authenticated users)
+router.put('/profile/update', auth, companyController.updateProfile);
+router.put('/compliance/update', auth, companyController.updateComplianceDetails);
+router.post('/compliance/upsert', auth, companyController.upsertComplianceDetails);
+router.get('/compliance/details', auth, companyController.getComplianceDetails);
+
+// Super Admin routes
+router.get('/admin/all', auth, companyController.getAllCompanies);
+router.get('/admin/:companyId/compliance', auth, companyController.getComplianceDetailsByCompanyId);
+router.put('/admin/:companyId/status', auth, companyController.setCompanyActiveStatus);
+
+// Company management routes (Super Admin) - These must come after specific routes
+router.get('/:companyId', companyController.getCompanyById);
 router.put('/:companyId', companyController.editCompany);
 
 module.exports = router;
