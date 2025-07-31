@@ -214,9 +214,9 @@ function showAPIDocumentation() {
   console.log(JSON.stringify({
     type: 'twilio',
     config: {
-      accountSid: 'ACf159a3a887b5ac5160a74c3f47df722b',
+      accountSid: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       authToken: 'your_auth_token',
-      fromNumber: '+12316748806'
+      fromNumber: '+1234567890'
     }
   }, null, 2));
   

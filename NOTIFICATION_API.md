@@ -168,9 +168,9 @@ Configure Twilio or SendGrid settings.
 {
   "type": "twilio",
   "config": {
-    "accountSid": "ACf159a3a887b5ac5160a74c3f47df722b",
+    "accountSid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "authToken": "your_twilio_auth_token",
-    "fromNumber": "+12316748806"
+    "fromNumber": "+1234567890"
   }
 }
 ```
@@ -195,9 +195,9 @@ Configure Twilio or SendGrid settings.
   "data": {
     "id": 1,
     "type": "twilio",
-    "accountSid": "ACf159a3a887b5ac5160a74c3f47df722b",
+    "accountSid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "authToken": "your_twilio_auth_token",
-    "fromNumber": "+12316748806",
+    "fromNumber": "+1234567890",
     "createdAt": "2024-01-01T00:00:00.000Z",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   }
