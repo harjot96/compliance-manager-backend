@@ -17,23 +17,27 @@ const sendgridSchema = Joi.object({
 const createSetting = async (req, res, next) => {
   try {
     const { type, config } = req.body;
-    if (!type || !['smtp', 'twilio'].includes(type)) {
-      return res.status(400).json({ success: false, message: 'Type must be smtp or twilio' });
+    
+    // Handle both 'sendgrid' and 'smtp' types for SendGrid configuration
+    const normalizedType = type === 'sendgrid' ? 'smtp' : type;
+    
+    if (!type || !['smtp', 'twilio', 'sendgrid'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Type must be smtp, sendgrid, or twilio' });
     }
     if (!config || typeof config !== 'object') {
       return res.status(400).json({ success: false, message: 'Config must be an object' });
     }
     // Validate config
     let validation;
-    if (type === 'twilio') {
+    if (normalizedType === 'twilio') {
       validation = twilioSchema.validate(config);
-    } else if (type === 'smtp') {
+    } else if (normalizedType === 'smtp') {
       validation = sendgridSchema.validate(config);
     }
     if (validation && validation.error) {
       return res.status(400).json({ success: false, message: validation.error.details[0].message });
     }
-    const setting = await NotificationSetting.create({ type, config });
+    const setting = await NotificationSetting.create({ type: normalizedType, config });
     res.status(201).json({ success: true, data: setting.toJSON() });
   } catch (error) {
     next(error);
@@ -71,10 +75,14 @@ const updateSetting = async (req, res, next) => {
 const getSettingByType = async (req, res, next) => {
   try {
     const { type } = req.params;
-    if (!type || !['smtp', 'twilio'].includes(type)) {
-      return res.status(400).json({ success: false, message: 'Type must be smtp or twilio' });
+    
+    // Handle both 'sendgrid' and 'smtp' types for SendGrid configuration
+    const normalizedType = type === 'sendgrid' ? 'smtp' : type;
+    
+    if (!type || !['smtp', 'twilio', 'sendgrid'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Type must be smtp, sendgrid, or twilio' });
     }
-    const setting = await NotificationSetting.getByType(type);
+    const setting = await NotificationSetting.getByType(normalizedType);
     if (!setting) {
       return res.status(404).json({ success: false, message: 'Setting not found' });
     }

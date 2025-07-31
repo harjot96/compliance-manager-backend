@@ -33,6 +33,12 @@ router.delete('/templates/:id', notificationTemplateController.deleteTemplate);
 // Test template route
 router.post('/templates/:id/test', notificationTemplateController.testTemplate);
 
+// Notification testing API endpoints
+router.post('/test/sms', notificationTemplateController.testSMS);
+router.post('/test/email', notificationTemplateController.testEmail);
+router.post('/test/notification-settings', notificationTemplateController.testNotificationSettings);
+router.get('/test/status', notificationTemplateController.getTestStatus);
+
 router.get('/notification-settings', async (req, res) => {
   try {
     const CronjobSetting = require('../models/CronjobSetting');

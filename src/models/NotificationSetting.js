@@ -96,6 +96,28 @@ class NotificationSetting {
     return result.rows[0].config; // Should contain { accountSid, authToken, phoneNumber }
   }
 
+  // Fetch SendGrid settings from notification_settings table
+  static async getSendGridSettings() {
+    const result = await db.query(
+      "SELECT config FROM notification_settings WHERE type = 'smtp' LIMIT 1"
+    );
+    if (result.rows.length === 0) {
+      // Fall back to environment variables
+      const envConfig = {
+        apiKey: process.env.SENDGRID_API_KEY,
+        fromEmail: process.env.SENDGRID_FROM_EMAIL,
+        fromName: process.env.SENDGRID_FROM_NAME
+      };
+      
+      // Only return if all required fields are present
+      if (envConfig.apiKey && envConfig.fromEmail && envConfig.fromName) {
+        return envConfig;
+      }
+      return null;
+    }
+    return result.rows[0].config; // Should contain { apiKey, fromEmail, fromName }
+  }
+
   toJSON() {
     // Flatten config so that type, sms, and email are at the top level
     return {
