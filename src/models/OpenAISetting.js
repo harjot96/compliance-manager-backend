@@ -13,9 +13,6 @@ class OpenAISetting {
       CREATE TABLE IF NOT EXISTS openai_settings (
         id SERIAL PRIMARY KEY,
         api_key_encrypted TEXT NOT NULL,
-        model VARCHAR(50) DEFAULT 'gpt-3.5-turbo',
-        max_tokens INTEGER DEFAULT 1000,
-        temperature DECIMAL(3,2) DEFAULT 0.7,
         is_active BOOLEAN DEFAULT true,
         created_by INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -84,7 +81,7 @@ class OpenAISetting {
    */
   static async saveSettings(settings) {
     try {
-      const { apiKey, model = 'gpt-3.5-turbo', maxTokens = 1000, temperature = 0.7, createdBy } = settings;
+      const { apiKey, createdBy } = settings;
       
       if (!apiKey) {
         throw new Error('API key is required');
@@ -97,18 +94,15 @@ class OpenAISetting {
       const encryptedJson = JSON.stringify(encryptedData);
       
       const query = `
-        INSERT INTO openai_settings (api_key_encrypted, model, max_tokens, temperature, created_by)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO openai_settings (api_key_encrypted, created_by)
+        VALUES ($1, $2)
         ON CONFLICT (id) DO UPDATE SET
           api_key_encrypted = EXCLUDED.api_key_encrypted,
-          model = EXCLUDED.model,
-          max_tokens = EXCLUDED.max_tokens,
-          temperature = EXCLUDED.temperature,
           updated_at = CURRENT_TIMESTAMP
-        RETURNING id, model, max_tokens, temperature, is_active, created_at, updated_at;
+        RETURNING id, is_active, created_at, updated_at;
       `;
       
-      const values = [encryptedJson, model, maxTokens, temperature, createdBy];
+      const values = [encryptedJson, createdBy];
       const result = await pool.query(query, values);
       
       console.log('✅ OpenAI settings saved successfully');
@@ -125,7 +119,7 @@ class OpenAISetting {
   static async getSettings() {
     try {
       const query = `
-        SELECT id, api_key_encrypted, model, max_tokens, temperature, is_active, created_at, updated_at
+        SELECT id, api_key_encrypted, is_active, created_at, updated_at
         FROM openai_settings
         WHERE is_active = true
         ORDER BY created_at DESC
@@ -147,9 +141,6 @@ class OpenAISetting {
       return {
         id: settings.id,
         apiKey: decryptedApiKey,
-        model: settings.model,
-        maxTokens: settings.max_tokens,
-        temperature: settings.temperature,
         isActive: settings.is_active,
         createdAt: settings.created_at,
         updatedAt: settings.updated_at
@@ -165,30 +156,25 @@ class OpenAISetting {
    */
   static async updateSettings(id, settings) {
     try {
-      const { apiKey, model, maxTokens, temperature } = settings;
+      const { apiKey } = settings;
       
-      let encryptedJson = null;
-      if (apiKey) {
-        const encryptedData = this.encryptApiKey(apiKey);
-        encryptedJson = JSON.stringify(encryptedData);
+      if (!apiKey) {
+        throw new Error('API key is required for update');
       }
+
+      const encryptedData = this.encryptApiKey(apiKey);
+      const encryptedJson = JSON.stringify(encryptedData);
       
       const query = `
         UPDATE openai_settings
         SET 
-          ${apiKey ? 'api_key_encrypted = $2,' : ''}
-          model = COALESCE($3, model),
-          max_tokens = COALESCE($4, max_tokens),
-          temperature = COALESCE($5, temperature),
+          api_key_encrypted = $2,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
-        RETURNING id, model, max_tokens, temperature, is_active, updated_at;
+        RETURNING id, is_active, updated_at;
       `;
       
-      const values = apiKey 
-        ? [id, encryptedJson, model, maxTokens, temperature]
-        : [id, model, maxTokens, temperature];
-      
+      const values = [id, encryptedJson];
       const result = await pool.query(query, values);
       
       if (result.rows.length === 0) {
@@ -234,7 +220,7 @@ class OpenAISetting {
   static async getAllSettings() {
     try {
       const query = `
-        SELECT id, model, max_tokens, temperature, is_active, created_by, created_at, updated_at
+        SELECT id, is_active, created_by, created_at, updated_at
         FROM openai_settings
         ORDER BY created_at DESC;
       `;
@@ -243,9 +229,6 @@ class OpenAISetting {
       
       return result.rows.map(row => ({
         id: row.id,
-        model: row.model,
-        maxTokens: row.max_tokens,
-        temperature: row.temperature,
         isActive: row.is_active,
         createdBy: row.created_by,
         createdAt: row.created_at,

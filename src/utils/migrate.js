@@ -157,9 +157,6 @@ const createTables = async () => {
       CREATE TABLE IF NOT EXISTS openai_settings (
         id SERIAL PRIMARY KEY,
         api_key_encrypted TEXT NOT NULL,
-        model VARCHAR(50) DEFAULT 'gpt-3.5-turbo',
-        max_tokens INTEGER DEFAULT 1000,
-        temperature DECIMAL(3,2) DEFAULT 0.7,
         is_active BOOLEAN DEFAULT true,
         created_by INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -226,7 +223,63 @@ const runMigrations = async () => {
   }
 };
 
-// Run migration if this file is executed directly
+/**
+ * Migrate OpenAI settings table to remove unused columns
+ */
+async function migrateOpenAISettings() {
+  try {
+    console.log('🔄 Starting OpenAI settings migration...');
+    
+    // Check if columns exist before dropping them
+    const checkColumnsQuery = `
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'openai_settings' 
+      AND column_name IN ('model', 'max_tokens', 'temperature');
+    `;
+    
+    const existingColumns = await db.query(checkColumnsQuery);
+    const columnsToDrop = existingColumns.rows.map(row => row.column_name);
+    
+    if (columnsToDrop.length > 0) {
+      console.log(`📋 Found columns to drop: ${columnsToDrop.join(', ')}`);
+      
+      // Drop each column
+      for (const column of columnsToDrop) {
+        const dropQuery = `ALTER TABLE openai_settings DROP COLUMN IF EXISTS ${column};`;
+        await db.query(dropQuery);
+        console.log(`✅ Dropped column: ${column}`);
+      }
+      
+      console.log('✅ OpenAI settings migration completed successfully');
+    } else {
+      console.log('ℹ️  No columns to drop - table already migrated');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error during OpenAI settings migration:', error);
+    throw error;
+  }
+}
+
+/**
+ * Run all migrations
+ */
+async function runAllMigrations() {
+  try {
+    console.log('🚀 Starting database migrations...');
+    
+    // Run OpenAI settings migration
+    await migrateOpenAISettings();
+    
+    console.log('✅ All migrations completed successfully');
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    throw error;
+  }
+}
+
+// Run migrations if this file is executed directly
 if (require.main === module) {
   const action = process.argv[2];
   
@@ -242,6 +295,10 @@ if (require.main === module) {
     runMigrations()
       .then(() => process.exit(0))
       .catch(() => process.exit(1));
+  } else if (action === 'runAllMigrations') {
+    runAllMigrations()
+      .then(() => process.exit(0))
+      .catch(() => process.exit(1));
   } else {
     createTables()
       .then(() => process.exit(0))
@@ -249,4 +306,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { createTables, dropTables, addRoleColumn, runMigrations };
+module.exports = { createTables, dropTables, addRoleColumn, runMigrations, migrateOpenAISettings, runAllMigrations };

@@ -8,7 +8,7 @@ const OpenAISetting = require('../models/OpenAISetting');
  */
 const chatCompletion = async (req, res, next) => {
   try {
-    const { prompt, model, maxTokens, temperature } = req.body;
+    const { prompt, model = 'gpt-3.5-turbo', maxTokens = 1000, temperature = 0.7 } = req.body;
 
     // Validate required fields
     if (!prompt) {
@@ -34,15 +34,15 @@ const chatCompletion = async (req, res, next) => {
 
     // Create chat completion
     const completion = await openai.chat.completions.create({
-      model: model || settings.model,
+      model: model,
       messages: [
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: maxTokens || settings.maxTokens,
-      temperature: temperature || settings.temperature
+      max_tokens: maxTokens,
+      temperature: temperature
     });
 
     const response = completion.choices[0]?.message?.content || 'No response generated';
@@ -52,7 +52,7 @@ const chatCompletion = async (req, res, next) => {
       message: 'AI response generated successfully',
       data: {
         response: response,
-        model: model || settings.model,
+        model: model,
         usage: completion.usage,
         finishReason: completion.choices[0]?.finish_reason
       }
@@ -98,9 +98,9 @@ const generateComplianceText = async (req, res, next) => {
       companyName, 
       daysLeft, 
       customPrompt,
-      model,
-      maxTokens,
-      temperature
+      model = 'gpt-3.5-turbo',
+      maxTokens = 1000,
+      temperature = 0.7
     } = req.body;
 
     // Validate required fields
@@ -143,7 +143,7 @@ const generateComplianceText = async (req, res, next) => {
 
     // Create chat completion
     const completion = await openai.chat.completions.create({
-      model: model || settings.model,
+      model: model,
       messages: [
         {
           role: 'system',
@@ -154,8 +154,8 @@ const generateComplianceText = async (req, res, next) => {
           content: prompt
         }
       ],
-      max_tokens: maxTokens || settings.maxTokens,
-      temperature: temperature || settings.temperature
+      max_tokens: maxTokens,
+      temperature: temperature
     });
 
     const response = completion.choices[0]?.message?.content || 'No response generated';
@@ -168,7 +168,7 @@ const generateComplianceText = async (req, res, next) => {
         complianceType: complianceType,
         companyName: companyName,
         daysLeft: daysLeft,
-        model: model || settings.model,
+        model: model,
         usage: completion.usage
       }
     });
@@ -207,9 +207,9 @@ const generateTemplate = async (req, res, next) => {
       complianceType,
       tone = 'professional',
       customPrompt,
-      model,
-      maxTokens,
-      temperature
+      model = 'gpt-3.5-turbo',
+      maxTokens = 1000,
+      temperature = 0.7
     } = req.body;
 
     // Validate required fields
@@ -271,7 +271,7 @@ const generateTemplate = async (req, res, next) => {
 
     // Create chat completion
     const completion = await openai.chat.completions.create({
-      model: model || settings.model,
+      model: model,
       messages: [
         {
           role: 'system',
@@ -282,8 +282,8 @@ const generateTemplate = async (req, res, next) => {
           content: prompt
         }
       ],
-      max_tokens: maxTokens || settings.maxTokens,
-      temperature: temperature || settings.temperature
+      max_tokens: maxTokens,
+      temperature: temperature
     });
 
     const response = completion.choices[0]?.message?.content || 'No template generated';
@@ -296,7 +296,7 @@ const generateTemplate = async (req, res, next) => {
         templateType: templateType,
         complianceType: complianceType,
         tone: tone,
-        model: model || settings.model,
+        model: model,
         usage: completion.usage
       }
     });
@@ -334,9 +334,9 @@ const analyzeContent = async (req, res, next) => {
       content, 
       analysisType = 'compliance', // 'compliance', 'tone', 'effectiveness'
       customPrompt,
-      model,
-      maxTokens,
-      temperature
+      model = 'gpt-3.5-turbo',
+      maxTokens = 1000,
+      temperature = 0.7
     } = req.body;
 
     // Validate required fields
@@ -407,7 +407,7 @@ const analyzeContent = async (req, res, next) => {
 
     // Create chat completion
     const completion = await openai.chat.completions.create({
-      model: model || settings.model,
+      model: model,
       messages: [
         {
           role: 'system',
@@ -418,8 +418,8 @@ const analyzeContent = async (req, res, next) => {
           content: prompt
         }
       ],
-      max_tokens: maxTokens || settings.maxTokens,
-      temperature: temperature || settings.temperature
+      max_tokens: maxTokens,
+      temperature: temperature
     });
 
     const response = completion.choices[0]?.message?.content || 'No analysis generated';
@@ -431,7 +431,7 @@ const analyzeContent = async (req, res, next) => {
         analysis: response,
         analysisType: analysisType,
         content: content,
-        model: model || settings.model,
+        model: model,
         usage: completion.usage
       }
     });
