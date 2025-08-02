@@ -9,6 +9,7 @@ require('dotenv').config();
 const companyRoutes = require('./routes/companyRoutes');
 const cronjobSettingRoutes = require('./routes/cronjobSettingRoutes');
 const complianceDeadlinesRoutes = require('./routes/complianceDeadlinesRoutes');
+const openaiRoutes = require('./routes/openaiRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const { runMigrations } = require('./utils/migrate');
 
@@ -65,6 +66,7 @@ app.get('/health', (req, res) => {
 app.use('/api/companies', companyRoutes);
 app.use('/api/cronjob-settings', cronjobSettingRoutes);
 app.use('/api/compliance-deadlines', complianceDeadlinesRoutes);
+app.use('/api/openai', openaiRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
