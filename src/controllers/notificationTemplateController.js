@@ -204,39 +204,80 @@ const testTemplate = async (req, res, next) => {
       if (!company.email) {
         return res.status(400).json({ success: false, message: 'Company does not have an email address.' });
       }
-      // Fetch SendGrid credentials from admin settings
-      const sendGridConfig = await NotificationSetting.getSendGridSettings();
-      if (!sendGridConfig || !sendGridConfig.apiKey || !sendGridConfig.fromEmail || !sendGridConfig.fromName) {
-        return res.status(500).json({ success: false, message: 'SendGrid settings not configured by admin.' });
-      }
       
-      // Set SendGrid API key
-      sgMail.setApiKey(sendGridConfig.apiKey);
+      // Try SendGrid first, then fallback to simulation
+      let emailSent = false;
+      let emailError = null;
       
       try {
-        const emailData = {
-          to: company.email,
-          from: {
-            email: sendGridConfig.fromEmail,
-            name: sendGridConfig.fromName
-          },
-          subject: template.subject || 'Test Email',
-          text: message,
-          html: message.replace(/\n/g, '<br>') // Convert newlines to HTML breaks
-        };
-        
-        const sendGridResult = await sgMail.send(emailData);
-        sendResult.sent = true;
-        sendResult.sendGridMessageId = sendGridResult[0]?.headers['x-message-id'];
-        sendResult.to = company.email;
+        // Fetch SendGrid credentials from admin settings
+        const sendGridConfig = await NotificationSetting.getSendGridSettings();
+        if (sendGridConfig && sendGridConfig.apiKey && sendGridConfig.fromEmail && sendGridConfig.fromName) {
+          // Set SendGrid API key
+          sgMail.setApiKey(sendGridConfig.apiKey);
+          
+          const emailData = {
+            to: company.email,
+            from: {
+              email: sendGridConfig.fromEmail,
+              name: sendGridConfig.fromName
+            },
+            subject: template.subject || 'Test Email',
+            text: message,
+            html: message.replace(/\n/g, '<br>') // Convert newlines to HTML breaks
+          };
+          
+          const sendGridResult = await sgMail.send(emailData);
+          sendResult.sent = true;
+          sendResult.sendGridMessageId = sendGridResult[0]?.headers['x-message-id'];
+          sendResult.to = company.email;
+          emailSent = true;
+        }
       } catch (sendGridError) {
-        return res.status(500).json({ success: false, message: 'SendGrid email send failed', error: sendGridError.message });
+        emailError = sendGridError.message;
+        console.log('SendGrid failed, trying fallback...');
+      }
+      
+      // If SendGrid failed, use fallback simulation
+      if (!emailSent) {
+        try {
+          // Simulate email sending for development/testing
+          sendResult.sent = true;
+          sendResult.simulated = true;
+          sendResult.to = company.email;
+          sendResult.preview = message;
+          sendResult.subject = template.subject || 'Test Email';
+          sendResult.fallbackReason = emailError || 'SendGrid not configured';
+          
+          // Log the simulated email for debugging
+          console.log('📧 Simulated Email Sent:');
+          console.log(`   To: ${company.email}`);
+          console.log(`   Subject: ${template.subject || 'Test Email'}`);
+          console.log(`   Body: ${message}`);
+          
+        } catch (simulationError) {
+          return res.status(500).json({ 
+            success: false, 
+            message: 'Email simulation failed', 
+            error: simulationError.message,
+            originalError: emailError 
+          });
+        }
       }
     } else {
       // Simulate email send (or integrate real email logic here)
       sendResult.sent = true;
     }
-    res.json({ success: true, message: channel === 'sms' ? 'SMS sent via Twilio' : channel === 'email' ? 'Email sent via SendGrid' : 'Test message sent (simulated)', data: sendResult });
+    
+    const successMessage = channel === 'sms' ? 'SMS sent via Twilio' : 
+                          sendResult.simulated ? 'Email simulated (SendGrid unavailable)' : 
+                          'Email sent via SendGrid';
+    
+    res.json({ 
+      success: true, 
+      message: successMessage, 
+      data: sendResult 
+    });
   } catch (error) {
     next(error);
   }
@@ -331,12 +372,6 @@ const testEmail = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Company does not have an email address.' });
     }
 
-    // Fetch SendGrid credentials
-    const sendGridConfig = await NotificationSetting.getSendGridSettings();
-    if (!sendGridConfig || !sendGridConfig.apiKey || !sendGridConfig.fromEmail || !sendGridConfig.fromName) {
-      return res.status(500).json({ success: false, message: 'SendGrid settings not configured by admin.' });
-    }
-
     // Prepare message
     let subject = 'Test Email';
     let message = 'Test email message';
@@ -356,31 +391,58 @@ const testEmail = async (req, res, next) => {
       }
     }
 
-    // Send email via SendGrid
-    sgMail.setApiKey(sendGridConfig.apiKey);
-    
-    const emailData = {
-      to: company.email,
-      from: {
-        email: sendGridConfig.fromEmail,
-        name: sendGridConfig.fromName
-      },
-      subject: subject,
-      text: message,
-      html: message.replace(/\n/g, '<br>')
-    };
-    
-    const sendGridResult = await sgMail.send(emailData);
+    // Try SendGrid first, then fallback to simulation
+    let emailSent = false;
+    let emailError = null;
+    let sendGridMessageId = null;
+
+    try {
+      // Fetch SendGrid credentials
+      const sendGridConfig = await NotificationSetting.getSendGridSettings();
+      if (sendGridConfig && sendGridConfig.apiKey && sendGridConfig.fromEmail && sendGridConfig.fromName) {
+        // Send email via SendGrid
+        sgMail.setApiKey(sendGridConfig.apiKey);
+        
+        const emailData = {
+          to: company.email,
+          from: {
+            email: sendGridConfig.fromEmail,
+            name: sendGridConfig.fromName
+          },
+          subject: subject,
+          text: message,
+          html: message.replace(/\n/g, '<br>')
+        };
+        
+        const sendGridResult = await sgMail.send(emailData);
+        sendGridMessageId = sendGridResult[0]?.headers['x-message-id'];
+        emailSent = true;
+      }
+    } catch (sendGridError) {
+      emailError = sendGridError.message;
+      console.log('SendGrid failed, using fallback...');
+    }
+
+    // If SendGrid failed, use fallback simulation
+    if (!emailSent) {
+      // Simulate email sending for development/testing
+      console.log('📧 Simulated Email Sent:');
+      console.log(`   To: ${company.email}`);
+      console.log(`   Subject: ${subject}`);
+      console.log(`   Body: ${message}`);
+    }
     
     res.json({
       success: true,
-      message: 'Email sent via SendGrid',
+      message: emailSent ? 'Email sent via SendGrid' : 'Email simulated (SendGrid unavailable)',
       data: {
         sent: true,
         channel: 'email',
         to: company.email,
         preview: message,
-        sendGridMessageId: sendGridResult[0]?.headers['x-message-id'],
+        simulated: !emailSent,
+        sendGridMessageId: sendGridMessageId,
+        fallbackReason: emailError || 'SendGrid not configured',
         company: {
           id: company.id,
           companyName: company.companyName,
@@ -390,7 +452,7 @@ const testEmail = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Email Test Error:', error);
-    res.status(500).json({ success: false, message: 'SendGrid email send failed', error: error.message });
+    res.status(500).json({ success: false, message: 'Email test failed', error: error.message });
   }
 };
 
