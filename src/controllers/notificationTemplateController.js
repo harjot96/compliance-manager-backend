@@ -9,6 +9,64 @@ const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
 const twilioClient = twilio(accountSid, authToken);
 const NotificationSetting = require('../models/NotificationSetting');
 
+/**
+ * Email Service - Handles email sending with fallback
+ */
+const sendEmail = async (to, subject, message, templateId = null) => {
+  let emailSent = false;
+  let emailError = null;
+  let sendGridMessageId = null;
+
+  try {
+    // Fetch SendGrid credentials
+    const sendGridConfig = await NotificationSetting.getSendGridSettings();
+    if (sendGridConfig && sendGridConfig.apiKey && sendGridConfig.fromEmail && sendGridConfig.fromName) {
+      // Set SendGrid API key
+      sgMail.setApiKey(sendGridConfig.apiKey);
+      
+      const emailData = {
+        to: to,
+        from: {
+          email: sendGridConfig.fromEmail,
+          name: sendGridConfig.fromName
+        },
+        subject: subject,
+        text: message,
+        html: message.replace(/\n/g, '<br>')
+      };
+      
+      const sendGridResult = await sgMail.send(emailData);
+      sendGridMessageId = sendGridResult[0]?.headers['x-message-id'];
+      emailSent = true;
+      console.log('✅ Email sent via SendGrid successfully');
+    } else {
+      console.log('⚠️ SendGrid not configured, using simulation');
+    }
+  } catch (sendGridError) {
+    emailError = sendGridError.message;
+    console.log('❌ SendGrid failed, using fallback simulation...');
+    console.log('Error details:', sendGridError.message);
+  }
+
+  // If SendGrid failed or not configured, use fallback simulation
+  if (!emailSent) {
+    console.log('📧 Simulated Email Sent:');
+    console.log(`   To: ${to}`);
+    console.log(`   Subject: ${subject}`);
+    console.log(`   Body: ${message}`);
+    console.log(`   Template ID: ${templateId}`);
+    console.log(`   Fallback Reason: ${emailError || 'SendGrid not configured'}`);
+  }
+
+  return {
+    sent: true,
+    emailSent: emailSent,
+    simulated: !emailSent,
+    sendGridMessageId: sendGridMessageId,
+    fallbackReason: emailError || 'SendGrid not configured'
+  };
+};
+
 // Create a new template
 const createTemplate = async (req, res, next) => {
   try {
@@ -205,24 +263,21 @@ const testTemplate = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'Company does not have an email address.' });
       }
       
-      // Always use fallback simulation for now to ensure it works
-      console.log('📧 Using email simulation for testing...');
+      // Use the email service
+      const emailResult = await sendEmail(
+        company.email,
+        template.subject || 'Test Email',
+        message,
+        id
+      );
       
-      // Simulate email sending for development/testing
-      sendResult.sent = true;
-      sendResult.simulated = true;
+      sendResult.sent = emailResult.sent;
+      sendResult.simulated = emailResult.simulated;
       sendResult.to = company.email;
       sendResult.preview = message;
       sendResult.subject = template.subject || 'Test Email';
-      sendResult.fallbackReason = 'SendGrid temporarily unavailable - using simulation';
-      
-      // Log the simulated email for debugging
-      console.log('📧 Simulated Email Sent:');
-      console.log(`   To: ${company.email}`);
-      console.log(`   Subject: ${template.subject || 'Test Email'}`);
-      console.log(`   Body: ${message}`);
-      console.log(`   Template ID: ${id}`);
-      console.log(`   Company: ${company.companyName}`);
+      sendResult.sendGridMessageId = emailResult.sendGridMessageId;
+      sendResult.fallbackReason = emailResult.fallbackReason;
       
     } else {
       // Simulate email send (or integrate real email logic here)
@@ -352,27 +407,25 @@ const testEmail = async (req, res, next) => {
       }
     }
 
-    // Use email simulation for now to ensure it works
-    console.log('📧 Using email simulation for testing...');
-    
-    // Simulate email sending for development/testing
-    console.log('📧 Simulated Email Sent:');
-    console.log(`   To: ${company.email}`);
-    console.log(`   Subject: ${subject}`);
-    console.log(`   Body: ${message}`);
-    console.log(`   Company: ${company.companyName}`);
+    // Use the email service
+    const emailResult = await sendEmail(
+      company.email,
+      subject,
+      message,
+      templateId
+    );
     
     res.json({
       success: true,
-      message: 'Email simulated (SendGrid temporarily unavailable)',
+      message: emailResult.emailSent ? 'Email sent via SendGrid' : 'Email simulated (SendGrid unavailable)',
       data: {
         sent: true,
         channel: 'email',
         to: company.email,
         preview: message,
-        simulated: true,
-        sendGridMessageId: null,
-        fallbackReason: 'SendGrid temporarily unavailable - using simulation',
+        simulated: emailResult.simulated,
+        sendGridMessageId: emailResult.sendGridMessageId,
+        fallbackReason: emailResult.fallbackReason,
         company: {
           id: company.id,
           companyName: company.companyName,
