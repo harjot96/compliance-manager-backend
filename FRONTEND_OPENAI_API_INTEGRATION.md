@@ -2,7 +2,7 @@
 
 ## Base URL
 ```
-http://localhost:3000/api/openai
+https://compliance-manager-backend.onrender.com/api/openai
 ```
 
 ## Authentication
@@ -191,7 +191,7 @@ Authorization: Bearer <your-jwt-token>
 ```
 
 ### 2.2 Generate Compliance Text
-**POST** `/api/openai/generate-compliance-text`
+**POST** `/api/openai/compliance-text`
 
 **Request Body:**
 ```json
@@ -304,7 +304,7 @@ Authorization: Bearer <your-jwt-token>
 
 ```javascript
 // API Configuration
-const API_BASE_URL = 'http://localhost:3000/api/openai';
+const API_BASE_URL = 'https://compliance-manager-backend.onrender.com/api/openai';
 const token = localStorage.getItem('jwt_token');
 
 const headers = {
@@ -382,7 +382,7 @@ async function chatCompletion(prompt, options = {}) {
 // Generate Compliance Text
 async function generateComplianceText(complianceType, companyName, daysLeft, options = {}) {
   try {
-    const response = await fetch(`${API_BASE_URL}/generate-compliance-text`, {
+    const response = await fetch(`${API_BASE_URL}/compliance-text`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
