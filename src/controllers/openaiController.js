@@ -1,46 +1,48 @@
 const OpenAI = require('openai');
 const Joi = require('joi');
+const OpenAISetting = require('../models/OpenAISetting');
 
 /**
  * OpenAI Chat Completion
- * Frontend provides API key and prompt
+ * Uses stored API key from database
  */
 const chatCompletion = async (req, res, next) => {
   try {
-    const { apiKey, prompt, model = 'gpt-3.5-turbo', maxTokens = 1000, temperature = 0.7 } = req.body;
+    const { prompt, model, maxTokens, temperature } = req.body;
 
     // Validate required fields
-    if (!apiKey || !prompt) {
+    if (!prompt) {
       return res.status(400).json({ 
         success: false, 
-        message: 'API key and prompt are required' 
+        message: 'Prompt is required' 
       });
     }
 
-    // Validate API key format
-    if (!apiKey.startsWith('sk-')) {
-      return res.status(400).json({ 
+    // Get OpenAI settings from database
+    const settings = await OpenAISetting.getSettings();
+    if (!settings) {
+      return res.status(500).json({ 
         success: false, 
-        message: 'Invalid OpenAI API key format' 
+        message: 'OpenAI settings not configured. Please contact administrator.' 
       });
     }
 
-    // Initialize OpenAI with frontend-provided API key
+    // Initialize OpenAI with stored API key
     const openai = new OpenAI({
-      apiKey: apiKey
+      apiKey: settings.apiKey
     });
 
     // Create chat completion
     const completion = await openai.chat.completions.create({
-      model: model,
+      model: model || settings.model,
       messages: [
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: maxTokens,
-      temperature: temperature
+      max_tokens: maxTokens || settings.maxTokens,
+      temperature: temperature || settings.temperature
     });
 
     const response = completion.choices[0]?.message?.content || 'No response generated';
@@ -50,7 +52,7 @@ const chatCompletion = async (req, res, next) => {
       message: 'AI response generated successfully',
       data: {
         response: response,
-        model: model,
+        model: model || settings.model,
         usage: completion.usage,
         finishReason: completion.choices[0]?.finish_reason
       }
@@ -63,7 +65,7 @@ const chatCompletion = async (req, res, next) => {
     if (error.status === 401) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Invalid OpenAI API key' 
+        message: 'Invalid OpenAI API key. Please contact administrator.' 
       });
     } else if (error.status === 429) {
       return res.status(429).json({ 
@@ -92,35 +94,35 @@ const chatCompletion = async (req, res, next) => {
 const generateComplianceText = async (req, res, next) => {
   try {
     const { 
-      apiKey, 
       complianceType, 
       companyName, 
       daysLeft, 
       customPrompt,
-      model = 'gpt-3.5-turbo',
-      maxTokens = 500,
-      temperature = 0.7
+      model,
+      maxTokens,
+      temperature
     } = req.body;
 
     // Validate required fields
-    if (!apiKey || !complianceType || !companyName) {
+    if (!complianceType || !companyName) {
       return res.status(400).json({ 
         success: false, 
-        message: 'API key, compliance type, and company name are required' 
+        message: 'Compliance type and company name are required' 
       });
     }
 
-    // Validate API key format
-    if (!apiKey.startsWith('sk-')) {
-      return res.status(400).json({ 
+    // Get OpenAI settings from database
+    const settings = await OpenAISetting.getSettings();
+    if (!settings) {
+      return res.status(500).json({ 
         success: false, 
-        message: 'Invalid OpenAI API key format' 
+        message: 'OpenAI settings not configured. Please contact administrator.' 
       });
     }
 
     // Initialize OpenAI
     const openai = new OpenAI({
-      apiKey: apiKey
+      apiKey: settings.apiKey
     });
 
     // Create compliance-specific prompt
@@ -141,7 +143,7 @@ const generateComplianceText = async (req, res, next) => {
 
     // Create chat completion
     const completion = await openai.chat.completions.create({
-      model: model,
+      model: model || settings.model,
       messages: [
         {
           role: 'system',
@@ -152,8 +154,8 @@ const generateComplianceText = async (req, res, next) => {
           content: prompt
         }
       ],
-      max_tokens: maxTokens,
-      temperature: temperature
+      max_tokens: maxTokens || settings.maxTokens,
+      temperature: temperature || settings.temperature
     });
 
     const response = completion.choices[0]?.message?.content || 'No response generated';
@@ -166,7 +168,7 @@ const generateComplianceText = async (req, res, next) => {
         complianceType: complianceType,
         companyName: companyName,
         daysLeft: daysLeft,
-        model: model,
+        model: model || settings.model,
         usage: completion.usage
       }
     });
@@ -177,7 +179,7 @@ const generateComplianceText = async (req, res, next) => {
     if (error.status === 401) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Invalid OpenAI API key' 
+        message: 'Invalid OpenAI API key. Please contact administrator.' 
       });
     } else if (error.status === 429) {
       return res.status(429).json({ 
@@ -201,35 +203,35 @@ const generateComplianceText = async (req, res, next) => {
 const generateTemplate = async (req, res, next) => {
   try {
     const { 
-      apiKey, 
       templateType, // 'email' or 'sms'
       complianceType,
       tone = 'professional',
       customPrompt,
-      model = 'gpt-3.5-turbo',
-      maxTokens = 300,
-      temperature = 0.7
+      model,
+      maxTokens,
+      temperature
     } = req.body;
 
     // Validate required fields
-    if (!apiKey || !templateType || !complianceType) {
+    if (!templateType || !complianceType) {
       return res.status(400).json({ 
         success: false, 
-        message: 'API key, template type, and compliance type are required' 
+        message: 'Template type and compliance type are required' 
       });
     }
 
-    // Validate API key format
-    if (!apiKey.startsWith('sk-')) {
-      return res.status(400).json({ 
+    // Get OpenAI settings from database
+    const settings = await OpenAISetting.getSettings();
+    if (!settings) {
+      return res.status(500).json({ 
         success: false, 
-        message: 'Invalid OpenAI API key format' 
+        message: 'OpenAI settings not configured. Please contact administrator.' 
       });
     }
 
     // Initialize OpenAI
     const openai = new OpenAI({
-      apiKey: apiKey
+      apiKey: settings.apiKey
     });
 
     // Create template-specific prompt
@@ -269,7 +271,7 @@ const generateTemplate = async (req, res, next) => {
 
     // Create chat completion
     const completion = await openai.chat.completions.create({
-      model: model,
+      model: model || settings.model,
       messages: [
         {
           role: 'system',
@@ -280,8 +282,8 @@ const generateTemplate = async (req, res, next) => {
           content: prompt
         }
       ],
-      max_tokens: maxTokens,
-      temperature: temperature
+      max_tokens: maxTokens || settings.maxTokens,
+      temperature: temperature || settings.temperature
     });
 
     const response = completion.choices[0]?.message?.content || 'No template generated';
@@ -294,7 +296,7 @@ const generateTemplate = async (req, res, next) => {
         templateType: templateType,
         complianceType: complianceType,
         tone: tone,
-        model: model,
+        model: model || settings.model,
         usage: completion.usage
       }
     });
@@ -305,7 +307,7 @@ const generateTemplate = async (req, res, next) => {
     if (error.status === 401) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Invalid OpenAI API key' 
+        message: 'Invalid OpenAI API key. Please contact administrator.' 
       });
     } else if (error.status === 429) {
       return res.status(429).json({ 
@@ -329,34 +331,34 @@ const generateTemplate = async (req, res, next) => {
 const analyzeContent = async (req, res, next) => {
   try {
     const { 
-      apiKey, 
       content, 
       analysisType = 'compliance', // 'compliance', 'tone', 'effectiveness'
       customPrompt,
-      model = 'gpt-3.5-turbo',
-      maxTokens = 500,
-      temperature = 0.3
+      model,
+      maxTokens,
+      temperature
     } = req.body;
 
     // Validate required fields
-    if (!apiKey || !content) {
+    if (!content) {
       return res.status(400).json({ 
         success: false, 
-        message: 'API key and content are required' 
+        message: 'Content is required' 
       });
     }
 
-    // Validate API key format
-    if (!apiKey.startsWith('sk-')) {
-      return res.status(400).json({ 
+    // Get OpenAI settings from database
+    const settings = await OpenAISetting.getSettings();
+    if (!settings) {
+      return res.status(500).json({ 
         success: false, 
-        message: 'Invalid OpenAI API key format' 
+        message: 'OpenAI settings not configured. Please contact administrator.' 
       });
     }
 
     // Initialize OpenAI
     const openai = new OpenAI({
-      apiKey: apiKey
+      apiKey: settings.apiKey
     });
 
     // Create analysis-specific prompt
@@ -405,7 +407,7 @@ const analyzeContent = async (req, res, next) => {
 
     // Create chat completion
     const completion = await openai.chat.completions.create({
-      model: model,
+      model: model || settings.model,
       messages: [
         {
           role: 'system',
@@ -416,8 +418,8 @@ const analyzeContent = async (req, res, next) => {
           content: prompt
         }
       ],
-      max_tokens: maxTokens,
-      temperature: temperature
+      max_tokens: maxTokens || settings.maxTokens,
+      temperature: temperature || settings.temperature
     });
 
     const response = completion.choices[0]?.message?.content || 'No analysis generated';
@@ -429,7 +431,7 @@ const analyzeContent = async (req, res, next) => {
         analysis: response,
         analysisType: analysisType,
         content: content,
-        model: model,
+        model: model || settings.model,
         usage: completion.usage
       }
     });
@@ -440,7 +442,7 @@ const analyzeContent = async (req, res, next) => {
     if (error.status === 401) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Invalid OpenAI API key' 
+        message: 'Invalid OpenAI API key. Please contact administrator.' 
       });
     } else if (error.status === 429) {
       return res.status(429).json({ 

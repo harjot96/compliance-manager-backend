@@ -10,6 +10,7 @@ const companyRoutes = require('./routes/companyRoutes');
 const cronjobSettingRoutes = require('./routes/cronjobSettingRoutes');
 const complianceDeadlinesRoutes = require('./routes/complianceDeadlinesRoutes');
 const openaiRoutes = require('./routes/openaiRoutes');
+const openaiSettingRoutes = require('./routes/openaiSettingRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const { runMigrations } = require('./utils/migrate');
 
@@ -67,6 +68,7 @@ app.use('/api/companies', companyRoutes);
 app.use('/api/cronjob-settings', cronjobSettingRoutes);
 app.use('/api/compliance-deadlines', complianceDeadlinesRoutes);
 app.use('/api/openai', openaiRoutes);
+app.use('/api/openai-admin', openaiSettingRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

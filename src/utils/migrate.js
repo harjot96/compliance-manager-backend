@@ -152,6 +152,21 @@ const createTables = async () => {
       WHERE NOT EXISTS (SELECT 1 FROM compliance_deadlines)
     `);
 
+    // Create openai_settings table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS openai_settings (
+        id SERIAL PRIMARY KEY,
+        api_key_encrypted TEXT NOT NULL,
+        model VARCHAR(50) DEFAULT 'gpt-3.5-turbo',
+        max_tokens INTEGER DEFAULT 1000,
+        temperature DECIMAL(3,2) DEFAULT 0.7,
+        is_active BOOLEAN DEFAULT true,
+        created_by INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     console.log('Database tables created successfully');
   } catch (error) {
     console.error('Error creating tables:', error);
@@ -162,6 +177,7 @@ const createTables = async () => {
 const dropTables = async () => {
   try {
     await db.query('DROP TABLE IF EXISTS companies CASCADE');
+    await db.query('DROP TABLE IF EXISTS openai_settings CASCADE');
     await db.query('DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE');
     console.log('Database tables dropped successfully');
   } catch (error) {
