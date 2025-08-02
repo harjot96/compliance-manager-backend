@@ -208,6 +208,7 @@ const testTemplate = async (req, res, next) => {
       // Try SendGrid first, then fallback to simulation
       let emailSent = false;
       let emailError = null;
+      let sendGridMessageId = null;
       
       try {
         // Fetch SendGrid credentials from admin settings
@@ -235,7 +236,8 @@ const testTemplate = async (req, res, next) => {
         }
       } catch (sendGridError) {
         emailError = sendGridError.message;
-        console.log('SendGrid failed, trying fallback...');
+        console.log('SendGrid failed, using fallback simulation...');
+        console.log('Error details:', sendGridError.message);
       }
       
       // If SendGrid failed, use fallback simulation
@@ -254,8 +256,10 @@ const testTemplate = async (req, res, next) => {
           console.log(`   To: ${company.email}`);
           console.log(`   Subject: ${template.subject || 'Test Email'}`);
           console.log(`   Body: ${message}`);
+          console.log(`   Fallback Reason: ${emailError || 'SendGrid not configured'}`);
           
         } catch (simulationError) {
+          console.error('Simulation error:', simulationError);
           return res.status(500).json({ 
             success: false, 
             message: 'Email simulation failed', 
@@ -279,6 +283,7 @@ const testTemplate = async (req, res, next) => {
       data: sendResult 
     });
   } catch (error) {
+    console.error('Test template error:', error);
     next(error);
   }
 };
@@ -420,7 +425,8 @@ const testEmail = async (req, res, next) => {
       }
     } catch (sendGridError) {
       emailError = sendGridError.message;
-      console.log('SendGrid failed, using fallback...');
+      console.log('SendGrid failed, using fallback simulation...');
+      console.log('Error details:', sendGridError.message);
     }
 
     // If SendGrid failed, use fallback simulation
@@ -430,6 +436,7 @@ const testEmail = async (req, res, next) => {
       console.log(`   To: ${company.email}`);
       console.log(`   Subject: ${subject}`);
       console.log(`   Body: ${message}`);
+      console.log(`   Fallback Reason: ${emailError || 'SendGrid not configured'}`);
     }
     
     res.json({
