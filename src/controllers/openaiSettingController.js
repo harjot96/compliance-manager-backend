@@ -215,13 +215,51 @@ const testOpenAIApiKey = async (req, res, next) => {
     
     const testResult = await OpenAISetting.testApiKey(apiKey);
     
+    // Handle specific error types
+    if (!testResult.success) {
+      if (testResult.errorType === 'quota_exceeded') {
+        return res.status(429).json({
+          success: false,
+          message: testResult.message,
+          data: {
+            isValid: false,
+            error: testResult.error,
+            errorType: testResult.errorType,
+            suggestion: 'Please check your OpenAI billing and upgrade your plan if needed.'
+          }
+        });
+      } else if (testResult.errorType === 'invalid_key') {
+        return res.status(401).json({
+          success: false,
+          message: testResult.message,
+          data: {
+            isValid: false,
+            error: testResult.error,
+            errorType: testResult.errorType,
+            suggestion: 'Please check your API key and ensure it starts with "sk-".'
+          }
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: testResult.message,
+          data: {
+            isValid: false,
+            error: testResult.error,
+            errorType: testResult.errorType
+          }
+        });
+      }
+    }
+    
     res.json({
       success: true,
       message: testResult.message,
       data: {
         isValid: testResult.success,
         model: testResult.model,
-        error: testResult.error
+        error: null,
+        errorType: null
       }
     });
     

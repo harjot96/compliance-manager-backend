@@ -260,11 +260,43 @@ class OpenAISetting {
         model: completion.choices[0]?.message?.content
       };
     } catch (error) {
-      return {
-        success: false,
-        message: 'API key is invalid',
-        error: error.message
-      };
+      // Handle specific OpenAI errors
+      if (error.status === 429) {
+        return {
+          success: false,
+          message: 'API key is valid but quota exceeded',
+          error: 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.',
+          errorType: 'quota_exceeded'
+        };
+      } else if (error.status === 401) {
+        return {
+          success: false,
+          message: 'Invalid API key',
+          error: 'The API key provided is invalid or has been revoked.',
+          errorType: 'invalid_key'
+        };
+      } else if (error.status === 400) {
+        return {
+          success: false,
+          message: 'API key error',
+          error: error.message,
+          errorType: 'bad_request'
+        };
+      } else if (error.status === 500) {
+        return {
+          success: false,
+          message: 'OpenAI server error',
+          error: 'OpenAI servers are experiencing issues. Please try again later.',
+          errorType: 'server_error'
+        };
+      } else {
+        return {
+          success: false,
+          message: 'API key test failed',
+          error: error.message,
+          errorType: 'unknown_error'
+        };
+      }
     }
   }
 }
