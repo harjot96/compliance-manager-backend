@@ -1,4 +1,7 @@
 const db = require('../config/database');
+const XeroConnection = require('../models/XeroConnection');
+const XeroSyncCursor = require('../models/XeroSyncCursor');
+const XeroWebhookEvent = require('../models/XeroWebhookEvent');
 
 const createTables = async () => {
   try {
@@ -164,6 +167,11 @@ const createTables = async () => {
       )
     `);
 
+    // Create Xero tables
+    await XeroConnection.createTable();
+    await XeroSyncCursor.createTable();
+    await XeroWebhookEvent.createTable();
+
     console.log('Database tables created successfully');
   } catch (error) {
     console.error('Error creating tables:', error);
@@ -175,6 +183,9 @@ const dropTables = async () => {
   try {
     await db.query('DROP TABLE IF EXISTS companies CASCADE');
     await db.query('DROP TABLE IF EXISTS openai_settings CASCADE');
+    await db.query('DROP TABLE IF EXISTS xero_connections CASCADE');
+    await db.query('DROP TABLE IF EXISTS xero_sync_cursors CASCADE');
+    await db.query('DROP TABLE IF EXISTS xero_webhook_events CASCADE');
     await db.query('DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE');
     console.log('Database tables dropped successfully');
   } catch (error) {
