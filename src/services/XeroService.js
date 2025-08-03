@@ -7,7 +7,7 @@ class XeroService {
     this.clientId = process.env.XERO_CLIENT_ID;
     this.clientSecret = process.env.XERO_CLIENT_SECRET;
     this.redirectUri = process.env.XERO_REDIRECT_URI;
-    this.webhookSigningKey = process.env.XERO_WEBHOOK_SIGNING_KEY;
+    this.webhookSigningKeyUrl = process.env.XERO_WEBHOOK_SIGNING_KEY_URL;
     this.baseUrl = 'https://api.xero.com/api.xro/2.0';
     this.authUrl = 'https://login.xero.com/identity/connect/authorize';
     this.tokenUrl = 'https://identity.xero.com/connect/token';
@@ -352,10 +352,14 @@ class XeroService {
   /**
    * Verify webhook signature
    */
-  verifyWebhookSignature(payload, signature) {
+  async verifyWebhookSignature(payload, signature) {
     try {
+      // Fetch the signing key from the URL
+      const response = await axios.get(this.webhookSigningKeyUrl);
+      const webhookSigningKey = response.data.key || response.data;
+      
       const expectedSignature = crypto
-        .createHmac('sha256', this.webhookSigningKey)
+        .createHmac('sha256', webhookSigningKey)
         .update(payload)
         .digest('base64');
 

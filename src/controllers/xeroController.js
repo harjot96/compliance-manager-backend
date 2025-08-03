@@ -292,7 +292,7 @@ const handleWebhook = async (req, res, next) => {
     }
 
     // Verify webhook signature
-    if (!XeroService.verifyWebhookSignature(payload, signature)) {
+    if (!(await XeroService.verifyWebhookSignature(payload, signature))) {
       return res.status(401).json({
         success: false,
         message: 'Invalid webhook signature'
