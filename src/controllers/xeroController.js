@@ -18,8 +18,11 @@ const isCompanyEnrolled = async (companyId) => {
  */
 const buildAuthUrl = async (req, res, next) => {
   try {
+    console.log('🔍 Building Xero Auth URL for company:', req.company.id);
+    
     // Check if user is super admin
     if (req.company.role === 'admin') {
+      console.log('❌ Super admin cannot setup Xero accounts');
       return res.status(403).json({
         success: false,
         message: 'Super admins cannot setup Xero accounts. Only regular companies can setup Xero integration.'
@@ -30,15 +33,26 @@ const buildAuthUrl = async (req, res, next) => {
     const companyId = req.company.id;
 
     // Get company's Xero settings
+    console.log('🔍 Getting Xero settings for company:', companyId);
     const xeroSettings = await XeroSettings.getByCompanyId(companyId);
     if (!xeroSettings) {
+      console.log('❌ Xero settings not configured for company:', companyId);
       return res.status(400).json({
         success: false,
         message: 'Xero settings not configured for this company. Please configure Xero settings first.'
       });
     }
 
+    console.log('🔍 Xero settings found, generating state...');
     const state = crypto.randomBytes(16).toString('hex');
+    
+    // Store the state in the database
+    console.log('🔍 Storing state in database:', state);
+    await db.query(
+      'INSERT INTO xero_oauth_states (state, company_id) VALUES ($1, $2)',
+      [state, companyId]
+    );
+    console.log('✅ State stored successfully');
     
     const params = new URLSearchParams({
       response_type: 'code',
@@ -49,6 +63,7 @@ const buildAuthUrl = async (req, res, next) => {
     });
 
     const authUrl = `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
+    console.log('✅ Authorization URL generated successfully');
     
     res.json({
       success: true,
@@ -59,7 +74,7 @@ const buildAuthUrl = async (req, res, next) => {
       }
     });
   } catch (error) {
-    console.error('Build Auth URL Error:', error);
+    console.error('❌ Build Auth URL Error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to generate authorization URL',
