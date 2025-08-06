@@ -25,7 +25,13 @@ const buildAuthUrl = async (req, res, next) => {
       console.log('❌ Super admin cannot setup Xero accounts');
       return res.status(403).json({
         success: false,
-        message: 'Super admins cannot setup Xero accounts. Only regular companies can setup Xero integration.'
+        message: 'Super admins cannot setup Xero accounts. Only regular companies can setup Xero integration.',
+        errorCode: 'SUPER_ADMIN_RESTRICTED',
+        action: 'use_regular_company',
+        details: {
+          currentRole: req.company.role,
+          allowedRoles: ['company']
+        }
       });
     }
 
@@ -39,7 +45,14 @@ const buildAuthUrl = async (req, res, next) => {
       console.log('❌ Xero settings not configured for company:', companyId);
       return res.status(400).json({
         success: false,
-        message: 'Xero settings not configured for this company. Please configure Xero settings first.'
+        message: 'Xero settings not configured for this company. Please configure Xero settings first.',
+        errorCode: 'XERO_SETTINGS_MISSING',
+        action: 'configure_settings',
+        details: {
+          requiredFields: ['clientId', 'clientSecret', 'redirectUri'],
+          endpoint: '/api/xero/settings',
+          method: 'POST'
+        }
       });
     }
 
