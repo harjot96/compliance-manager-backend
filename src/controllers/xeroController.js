@@ -71,7 +71,7 @@ const buildAuthUrl = async (req, res, next) => {
 /**
  * Create and store a state for the OAuth flow
  */
-exports.createXeroAuthState = async (req, res) => {
+const createXeroAuthState = async (req, res) => {
   try {
     const companyId = req.company.id;
     const state = crypto.randomBytes(16).toString('hex');
@@ -538,5 +538,6 @@ module.exports = {
   createXeroSettings,
   getXeroSettings,
   deleteXeroSettings,
-  getAllXeroSettings
+  getAllXeroSettings,
+  createXeroAuthState
 }; 
