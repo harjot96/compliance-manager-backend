@@ -118,8 +118,12 @@ const createXeroAuthState = async (req, res) => {
  */
 const handleCallback = async (req, res, next) => {
   try {
+    console.log('🔍 Xero Callback Debug - Request method:', req.method);
     console.log('🔍 Xero Callback Debug - Request body:', req.body);
-    const { code, state } = req.body;
+    console.log('🔍 Xero Callback Debug - Query params:', req.query);
+    
+    // Handle both GET (query params) and POST (body) requests
+    const { code, state } = req.method === 'GET' ? req.query : req.body;
     if (!code || !state) {
       console.log('❌ Missing code or state:', { code: !!code, state: !!state });
       
