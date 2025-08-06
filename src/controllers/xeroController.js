@@ -129,7 +129,7 @@ const handleCallback = async (req, res, next) => {
       
       // Try to redirect to frontend with error
       try {
-        const redirectUrl = 'https://compliance-manager-frontend.onrender.com/xero-callback?success=false&error=Missing%20authorization%20parameters&errorDetails=Code%20and%20state%20are%20required%20for%20OAuth%20callback';
+        const redirectUrl = 'https://compliance-manager-frontend.onrender.com/redirecturl?success=false&error=Missing%20authorization%20parameters&errorDetails=Code%20and%20state%20are%20required%20for%20OAuth%20callback';
         
         console.log('🔄 Redirecting to error page:', redirectUrl);
         return res.redirect(redirectUrl);
@@ -148,7 +148,7 @@ const handleCallback = async (req, res, next) => {
       
       // Try to redirect to frontend with error
       try {
-        const redirectUrl = 'https://compliance-manager-frontend.onrender.com/xero-callback?success=false&error=Invalid%20or%20expired%20state&errorDetails=The%20authorization%20state%20token%20is%20invalid%20or%20has%20expired';
+        const redirectUrl = 'https://compliance-manager-frontend.onrender.com/redirecturl?success=false&error=Invalid%20or%20expired%20state&errorDetails=The%20authorization%20state%20token%20is%20invalid%20or%20has%20expired';
         
         console.log('🔄 Redirecting to error page:', redirectUrl);
         return res.redirect(redirectUrl);
@@ -236,7 +236,8 @@ const handleCallback = async (req, res, next) => {
     console.log('🔍 Deleted state from database');
     
     // Redirect to frontend with success parameters
-    const redirectUrl = new URL(xeroSettings.redirect_uri.replace('/api/xero/callback', ''));
+    // Use the correct redirect URL that matches Xero Developer Console
+    const redirectUrl = new URL('https://compliance-manager-frontend.onrender.com/redirecturl');
     redirectUrl.searchParams.set('success', 'true');
     redirectUrl.searchParams.set('companyId', companyId);
     redirectUrl.searchParams.set('tenants', JSON.stringify(tenants));
@@ -282,7 +283,7 @@ const handleCallback = async (req, res, next) => {
     // If we can't find the specific redirect URL, use a default frontend URL
     if (!redirectUrl) {
       try {
-        redirectUrl = new URL('https://compliance-manager-frontend.onrender.com/xero-callback');
+        redirectUrl = new URL('https://compliance-manager-frontend.onrender.com/redirecturl');
       } catch (urlError) {
         console.error('⚠️ Failed to create default redirect URL:', urlError.message);
       }
