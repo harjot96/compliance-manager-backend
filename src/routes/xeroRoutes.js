@@ -35,4 +35,7 @@ router.get('/settings', xeroLimiter, auth, xeroController.getXeroSettings);
 router.delete('/settings', xeroLimiter, auth, xeroController.deleteXeroSettings);
 router.get('/settings/all', xeroLimiter, auth, xeroController.getAllXeroSettings);
 
+// Xero-specific state creation for OAuth
+router.post('/create-auth-state', auth, xeroController.createXeroAuthState);
+
 module.exports = router; 

@@ -2,6 +2,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const CompanyCompliance = require('../models/CompanyCompliance');
 const XeroSettings = require('../models/XeroSettings');
+const db = require('../config/database');
 
 /**
  * Check if company is enrolled (has compliance details)
@@ -68,40 +69,49 @@ const buildAuthUrl = async (req, res, next) => {
 };
 
 /**
+ * Create and store a state for the OAuth flow
+ */
+exports.createXeroAuthState = async (req, res) => {
+  try {
+    const companyId = req.company.id;
+    const state = crypto.randomBytes(16).toString('hex');
+    await db.query(
+      'INSERT INTO xero_oauth_states (state, company_id) VALUES ($1, $2)',
+      [state, companyId]
+    );
+    res.json({ success: true, state });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to create state', error: error.message });
+  }
+};
+
+/**
  * Handle OAuth2 callback and exchange code for tokens
  */
 const handleCallback = async (req, res, next) => {
   try {
-    // No auth check here, since this is a public endpoint
     const { code, state } = req.body;
-
-    if (!code) {
-      return res.status(400).json({
-        success: false,
-        message: 'Authorization code is required'
-      });
+    if (!code || !state) {
+      return res.status(400).json({ success: false, message: 'Code and state are required' });
     }
 
-    // You may need to determine companyId by state or other means
-    // For now, you may need to look up company by state or other session info
-    // Example: const companyId = await getCompanyIdFromState(state);
-    // For demo, just return error if not implemented
-    // TODO: Implement company lookup by state
-    return res.status(400).json({
-      success: false,
-      message: 'Company lookup by state not implemented. You must associate the OAuth state with a company.'
-    });
+    // 1. Lookup company by state
+    const result = await db.query('SELECT company_id FROM xero_oauth_states WHERE state = $1', [state]);
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired state' });
+    }
+    const companyId = result.rows[0].company_id;
 
-    // Get company's Xero settings
+    // 2. Delete the state (one-time use)
+    await db.query('DELETE FROM xero_oauth_states WHERE state = $1', [state]);
+
+    // 3. Get Xero settings for this company
     const xeroSettings = await XeroSettings.getByCompanyId(companyId);
     if (!xeroSettings) {
-      return res.status(400).json({
-        success: false,
-        message: 'Xero settings not configured for this company. Please configure Xero settings first.'
-      });
+      return res.status(400).json({ success: false, message: 'Xero settings not configured for this company.' });
     }
 
-    // Exchange code for tokens
+    // 4. Exchange code for tokens
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
       code: code,
@@ -122,7 +132,7 @@ const handleCallback = async (req, res, next) => {
       tokenType: response.data.token_type
     };
 
-    // Get available tenants/organizations
+    // 5. Get available tenants/organizations
     const tenantsResponse = await axios.get('https://api.xero.com/connections', {
       headers: {
         'Authorization': `Bearer ${tokens.accessToken}`,
@@ -138,10 +148,9 @@ const handleCallback = async (req, res, next) => {
       data: {
         tokens,
         tenants,
-        companyId: req.company.id
+        companyId
       }
     });
-
   } catch (error) {
     console.error('OAuth Callback Error:', error);
     res.status(500).json({
