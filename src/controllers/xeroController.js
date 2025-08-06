@@ -122,7 +122,17 @@ const handleCallback = async (req, res, next) => {
     const { code, state } = req.body;
     if (!code || !state) {
       console.log('❌ Missing code or state:', { code: !!code, state: !!state });
-      return res.status(400).json({ success: false, message: 'Code and state are required' });
+      
+      // Try to redirect to frontend with error
+      try {
+        const redirectUrl = 'https://compliance-manager-frontend.onrender.com/xero-callback?success=false&error=Missing%20authorization%20parameters&errorDetails=Code%20and%20state%20are%20required%20for%20OAuth%20callback';
+        
+        console.log('🔄 Redirecting to error page:', redirectUrl);
+        return res.redirect(redirectUrl);
+      } catch (redirectError) {
+        console.error('⚠️ Failed to redirect, falling back to JSON:', redirectError.message);
+        return res.status(400).json({ success: false, message: 'Code and state are required' });
+      }
     }
 
     console.log('🔍 Looking up company by state:', state);
@@ -131,14 +141,22 @@ const handleCallback = async (req, res, next) => {
     console.log('🔍 State lookup result:', result.rows);
     if (result.rows.length === 0) {
       console.log('❌ Invalid or expired state');
-      return res.status(400).json({ success: false, message: 'Invalid or expired state' });
+      
+      // Try to redirect to frontend with error
+      try {
+        const redirectUrl = 'https://compliance-manager-frontend.onrender.com/xero-callback?success=false&error=Invalid%20or%20expired%20state&errorDetails=The%20authorization%20state%20token%20is%20invalid%20or%20has%20expired';
+        
+        console.log('🔄 Redirecting to error page:', redirectUrl);
+        return res.redirect(redirectUrl);
+      } catch (redirectError) {
+        console.error('⚠️ Failed to redirect, falling back to JSON:', redirectError.message);
+        return res.status(400).json({ success: false, message: 'Invalid or expired state' });
+      }
     }
     const companyId = result.rows[0].company_id;
     console.log('🔍 Found company ID:', companyId);
 
-    // 2. Delete the state (one-time use)
-    await db.query('DELETE FROM xero_oauth_states WHERE state = $1', [state]);
-    console.log('🔍 Deleted state from database');
+    // Note: We'll delete the state after processing to ensure we can look it up in error cases
 
     // 3. Get Xero settings for this company
     console.log('🔍 Getting Xero settings for company:', companyId);
@@ -191,15 +209,36 @@ const handleCallback = async (req, res, next) => {
     console.log('🔍 Found tenants:', tenants.length);
 
     console.log('✅ Xero callback completed successfully');
-    res.json({
-      success: true,
-      message: 'Xero authentication successful',
-      data: {
-        tokens,
-        tenants,
-        companyId
-      }
-    });
+    
+    // Store tokens in database for future use
+    try {
+      await db.query(
+        'UPDATE xero_settings SET access_token = $1, refresh_token = $2, token_expires_at = $3, updated_at = CURRENT_TIMESTAMP WHERE company_id = $4',
+        [
+          tokens.accessToken,
+          tokens.refreshToken,
+          new Date(Date.now() + tokens.expiresIn * 1000),
+          companyId
+        ]
+      );
+      console.log('✅ Tokens stored in database');
+    } catch (dbError) {
+      console.error('⚠️ Failed to store tokens in database:', dbError.message);
+      // Continue anyway - tokens are still valid
+    }
+    
+    // Delete the state (one-time use) - now safe to delete
+    await db.query('DELETE FROM xero_oauth_states WHERE state = $1', [state]);
+    console.log('🔍 Deleted state from database');
+    
+    // Redirect to frontend with success parameters
+    const redirectUrl = new URL(xeroSettings.redirect_uri.replace('/api/xero/callback', ''));
+    redirectUrl.searchParams.set('success', 'true');
+    redirectUrl.searchParams.set('companyId', companyId);
+    redirectUrl.searchParams.set('tenants', JSON.stringify(tenants));
+    
+    console.log('🔄 Redirecting to:', redirectUrl.toString());
+    res.redirect(redirectUrl.toString());
   } catch (error) {
     console.error('❌ OAuth Callback Error:', error);
     console.error('❌ Error details:', {
@@ -208,6 +247,8 @@ const handleCallback = async (req, res, next) => {
       status: error.response?.status,
       stack: error.stack
     });
+    console.error('❌ Request body:', req.body);
+    console.error('❌ State from request:', req.body.state);
     
     // Provide more specific error messages
     let errorMessage = 'Failed to complete OAuth flow';
@@ -219,12 +260,47 @@ const handleCallback = async (req, res, next) => {
       errorMessage = 'Access denied by Xero';
     }
     
-    res.status(500).json({
-      success: false,
-      message: errorMessage,
-      error: error.message,
-      details: error.response?.data || null
-    });
+    // Try to get the redirect URI from the state lookup
+    let redirectUrl = null;
+    try {
+      const stateResult = await db.query('SELECT company_id FROM xero_oauth_states WHERE state = $1', [req.body.state]);
+      if (stateResult.rows.length > 0) {
+        const companyId = stateResult.rows[0].company_id;
+        const xeroSettings = await XeroSettings.getByCompanyId(companyId);
+        if (xeroSettings) {
+          redirectUrl = new URL(xeroSettings.redirect_uri.replace('/api/xero/callback', ''));
+        }
+      }
+    } catch (redirectError) {
+      console.error('⚠️ Failed to get redirect URL for error:', redirectError.message);
+    }
+    
+    // If we can't find the specific redirect URL, use a default frontend URL
+    if (!redirectUrl) {
+      try {
+        redirectUrl = new URL('https://compliance-manager-frontend.onrender.com/xero-callback');
+      } catch (urlError) {
+        console.error('⚠️ Failed to create default redirect URL:', urlError.message);
+      }
+    }
+    
+    if (redirectUrl) {
+      // Redirect to frontend with error parameters
+      redirectUrl.searchParams.set('success', 'false');
+      redirectUrl.searchParams.set('error', errorMessage);
+      redirectUrl.searchParams.set('errorDetails', error.message);
+      
+      console.log('🔄 Redirecting to error page:', redirectUrl.toString());
+      res.redirect(redirectUrl.toString());
+    } else {
+      // Fallback to JSON response if we can't redirect
+      res.status(500).json({
+        success: false,
+        message: errorMessage,
+        error: error.message,
+        details: error.response?.data || null
+      });
+    }
   }
 };
 

@@ -167,6 +167,23 @@ const createTables = async () => {
 
     // Create Xero settings table
     await XeroSettings.createTable();
+    
+    // Add token storage columns to xero_settings if they don't exist
+    await db.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='xero_settings' AND column_name='access_token') THEN
+          ALTER TABLE xero_settings ADD COLUMN access_token TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='xero_settings' AND column_name='refresh_token') THEN
+          ALTER TABLE xero_settings ADD COLUMN refresh_token TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='xero_settings' AND column_name='token_expires_at') THEN
+          ALTER TABLE xero_settings ADD COLUMN token_expires_at TIMESTAMP;
+        END IF;
+      END
+      $$;
+    `);
 
     // Create xero_oauth_states table for OAuth flow
     await db.query(`
