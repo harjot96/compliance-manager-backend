@@ -90,31 +90,48 @@ const createXeroAuthState = async (req, res) => {
  */
 const handleCallback = async (req, res, next) => {
   try {
+    console.log('🔍 Xero Callback Debug - Request body:', req.body);
     const { code, state } = req.body;
     if (!code || !state) {
+      console.log('❌ Missing code or state:', { code: !!code, state: !!state });
       return res.status(400).json({ success: false, message: 'Code and state are required' });
     }
 
+    console.log('🔍 Looking up company by state:', state);
     // 1. Lookup company by state
     const result = await db.query('SELECT company_id FROM xero_oauth_states WHERE state = $1', [state]);
+    console.log('🔍 State lookup result:', result.rows);
     if (result.rows.length === 0) {
+      console.log('❌ Invalid or expired state');
       return res.status(400).json({ success: false, message: 'Invalid or expired state' });
     }
     const companyId = result.rows[0].company_id;
+    console.log('🔍 Found company ID:', companyId);
 
     // 2. Delete the state (one-time use)
     await db.query('DELETE FROM xero_oauth_states WHERE state = $1', [state]);
+    console.log('🔍 Deleted state from database');
 
     // 3. Get Xero settings for this company
+    console.log('🔍 Getting Xero settings for company:', companyId);
     const xeroSettings = await XeroSettings.getByCompanyId(companyId);
+    console.log('🔍 Xero settings found:', !!xeroSettings);
     if (!xeroSettings) {
+      console.log('❌ Xero settings not configured for company:', companyId);
       return res.status(400).json({ success: false, message: 'Xero settings not configured for this company.' });
     }
 
     // 4. Exchange code for tokens
+    console.log('🔍 Exchanging code for tokens...');
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
       code: code,
+      redirect_uri: xeroSettings.redirect_uri
+    });
+
+    console.log('🔍 Token exchange params:', {
+      grant_type: 'authorization_code',
+      code: code ? 'present' : 'missing',
       redirect_uri: xeroSettings.redirect_uri
     });
 
@@ -125,6 +142,7 @@ const handleCallback = async (req, res, next) => {
       }
     });
 
+    console.log('🔍 Token exchange successful');
     const tokens = {
       accessToken: response.data.access_token,
       refreshToken: response.data.refresh_token,
@@ -133,6 +151,7 @@ const handleCallback = async (req, res, next) => {
     };
 
     // 5. Get available tenants/organizations
+    console.log('🔍 Getting available tenants...');
     const tenantsResponse = await axios.get('https://api.xero.com/connections', {
       headers: {
         'Authorization': `Bearer ${tokens.accessToken}`,
@@ -141,7 +160,9 @@ const handleCallback = async (req, res, next) => {
     });
 
     const tenants = tenantsResponse.data;
+    console.log('🔍 Found tenants:', tenants.length);
 
+    console.log('✅ Xero callback completed successfully');
     res.json({
       success: true,
       message: 'Xero authentication successful',
@@ -152,11 +173,29 @@ const handleCallback = async (req, res, next) => {
       }
     });
   } catch (error) {
-    console.error('OAuth Callback Error:', error);
+    console.error('❌ OAuth Callback Error:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      stack: error.stack
+    });
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to complete OAuth flow';
+    if (error.response?.status === 400) {
+      errorMessage = 'Invalid authorization code or redirect URI';
+    } else if (error.response?.status === 401) {
+      errorMessage = 'Invalid client credentials';
+    } else if (error.response?.status === 403) {
+      errorMessage = 'Access denied by Xero';
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Failed to complete OAuth flow',
-      error: error.message
+      message: errorMessage,
+      error: error.message,
+      details: error.response?.data || null
     });
   }
 };

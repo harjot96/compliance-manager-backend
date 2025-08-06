@@ -168,6 +168,21 @@ const createTables = async () => {
     // Create Xero settings table
     await XeroSettings.createTable();
 
+    // Create xero_oauth_states table for OAuth flow
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS xero_oauth_states (
+        id SERIAL PRIMARY KEY,
+        state VARCHAR(255) NOT NULL UNIQUE,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create index for faster lookups
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_xero_oauth_states_state ON xero_oauth_states(state)
+    `);
+
     console.log('Database tables created successfully');
   } catch (error) {
     console.error('Error creating tables:', error);
@@ -180,6 +195,7 @@ const dropTables = async () => {
     await db.query('DROP TABLE IF EXISTS companies CASCADE');
     await db.query('DROP TABLE IF EXISTS openai_settings CASCADE');
     await db.query('DROP TABLE IF EXISTS xero_settings CASCADE');
+    await db.query('DROP TABLE IF EXISTS xero_oauth_states CASCADE');
     await db.query('DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE');
     console.log('Database tables dropped successfully');
   } catch (error) {
