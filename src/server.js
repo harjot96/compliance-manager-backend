@@ -27,15 +27,33 @@ runMigrations().catch(error => {
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
+// CORS configuration - more permissive for OAuth redirects
 app.use(cors({
-  origin: [
-    'http://localhost:3001',
-    'http://localhost:3000',
-    'http://localhost:5173',
-    "https://compliance-manager-frontend.onrender.com"
-  ],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3001',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://compliance-manager-frontend.onrender.com',
+      'https://compliance-manager-frontend.onrender.com/',
+      'https://compliance-manager-frontend.onrender.com/redirecturl',
+      'https://compliance-manager-frontend.onrender.com/xero-callback'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('⚠️ CORS blocked origin:', origin);
+      callback(null, true); // Allow all origins for now to debug
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Location', 'X-RateLimit-Limit', 'X-RateLimit-Remaining']
 }));
 
 // Rate limiting - more permissive in development
@@ -102,6 +120,21 @@ app.use('/api/compliance-deadlines', complianceDeadlinesRoutes);
 app.use('/api/openai', openaiRoutes);
 app.use('/api/openai-admin', openaiSettingRoutes);
 app.use('/api/xero', xeroRoutes);
+
+// Redirect URL handler for frontend OAuth redirects
+app.get('/redirecturl', (req, res) => {
+  console.log('🔄 Redirect URL accessed:', req.url);
+  console.log('🔍 Query parameters:', req.query);
+  
+  // This endpoint is for handling OAuth redirects from the frontend
+  // The actual redirect should happen in the Xero callback, not here
+  res.status(200).json({
+    success: true,
+    message: 'Redirect URL endpoint accessed',
+    query: req.query,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // 404 handler
 app.use('*', (req, res) => {
