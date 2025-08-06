@@ -1,0 +1,34 @@
+{
+  "watch": [
+    "src/**/*.js",
+    "src/**/*.json"
+  ],
+  "ignore": [
+    "node_modules/**/*",
+    "tests/**/*",
+    "*.test.js",
+    "*.spec.js",
+    "test-*.js",
+    "demo-*.js",
+    "setup-*.js",
+    "verify-*.js",
+    "diagnose-*.js",
+    "fix-*.js",
+    "update-*.js",
+    "configure-*.js"
+  ],
+  "ext": "js,json",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": "1000",
+  "verbose": true,
+  "colours": true,
+  "restartable": "rs",
+  "legacyWatch": false,
+  "polling": false,
+  "events": {
+    "restart": "echo '🔄 Server restarted due to changes'",
+    "crash": "echo '💥 Server crashed, restarting...'"
+  }
+} 

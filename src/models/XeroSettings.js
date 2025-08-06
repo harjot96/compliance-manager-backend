@@ -1,0 +1,149 @@
+const db = require('../config/database');
+
+class XeroSettings {
+  /**
+   * Create Xero settings for a company
+   */
+  static async createSettings(companyId, settings) {
+    try {
+      const { clientId, clientSecret, redirectUri } = settings;
+      
+      const query = `
+        INSERT INTO xero_settings (company_id, client_id, client_secret, redirect_uri, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (company_id) 
+        DO UPDATE SET 
+          client_id = EXCLUDED.client_id,
+          client_secret = EXCLUDED.client_secret,
+          redirect_uri = EXCLUDED.redirect_uri,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *
+      `;
+      
+      const result = await db.query(query, [companyId, clientId, clientSecret, redirectUri]);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error creating Xero settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Xero settings by company ID
+   */
+  static async getByCompanyId(companyId) {
+    try {
+      const query = `
+        SELECT * FROM xero_settings 
+        WHERE company_id = $1
+      `;
+      
+      const result = await db.query(query, [companyId]);
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error getting Xero settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update Xero settings for a company
+   */
+  static async updateSettings(companyId, settings) {
+    try {
+      const { clientId, clientSecret, redirectUri } = settings;
+      
+      const query = `
+        UPDATE xero_settings 
+        SET 
+          client_id = $2,
+          client_secret = $3,
+          redirect_uri = $4,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE company_id = $1
+        RETURNING *
+      `;
+      
+      const result = await db.query(query, [companyId, clientId, clientSecret, redirectUri]);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error updating Xero settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete Xero settings for a company
+   */
+  static async deleteSettings(companyId) {
+    try {
+      const query = `
+        DELETE FROM xero_settings 
+        WHERE company_id = $1
+        RETURNING *
+      `;
+      
+      const result = await db.query(query, [companyId]);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error deleting Xero settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all Xero settings (for admin)
+   */
+  static async getAllSettings() {
+    try {
+      const query = `
+        SELECT 
+          xs.*,
+          c.company_name,
+          c.email
+        FROM xero_settings xs
+        JOIN companies c ON xs.company_id = c.id
+        ORDER BY xs.created_at DESC
+      `;
+      
+      const result = await db.query(query);
+      return result.rows;
+    } catch (error) {
+      console.error('Error getting all Xero settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create the xero_settings table
+   */
+  static async createTable() {
+    try {
+      const query = `
+        CREATE TABLE IF NOT EXISTS xero_settings (
+          id SERIAL PRIMARY KEY,
+          company_id INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+          client_id VARCHAR(255) NOT NULL,
+          client_secret VARCHAR(255) NOT NULL,
+          redirect_uri VARCHAR(500) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      
+      await db.query(query);
+      
+      // Create index for faster lookups
+      await db.query(`
+        CREATE INDEX IF NOT EXISTS idx_xero_settings_company_id ON xero_settings(company_id)
+      `);
+      
+      console.log('Xero settings table created successfully');
+    } catch (error) {
+      console.error('Error creating xero_settings table:', error);
+      throw error;
+    }
+  }
+}
+
+module.exports = XeroSettings; 

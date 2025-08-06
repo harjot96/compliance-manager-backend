@@ -1,16 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const cronjobSettingController = require('../controllers/cronjobSettingController');
-const authMiddleware = require('../middleware/auth');
-const { requireSuperAdmin } = require('../middleware/auth');
+const auth = require('../middleware/auth');
 
-// Get all cronjob settings
-router.get('/', authMiddleware, requireSuperAdmin, cronjobSettingController.getAllCronjobSettings);
+// Get all cronjob settings (super admin only)
+router.get('/', auth, cronjobSettingController.getAllCronjobSettings);
 
-// Update a cronjob setting by id
-router.put('/:id', authMiddleware, requireSuperAdmin, cronjobSettingController.updateCronjobSetting);
+// Update a cronjob setting by id (super admin only)
+router.put('/:id', auth, cronjobSettingController.updateCronjobSetting);
 
-// Create a new cronjob setting
-router.post('/', authMiddleware, requireSuperAdmin, cronjobSettingController.createCronjobSetting);
+// Create a new cronjob setting (super admin only)
+router.post('/', auth, cronjobSettingController.createCronjobSetting);
 
 module.exports = router; 

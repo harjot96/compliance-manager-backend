@@ -1,7 +1,5 @@
 const db = require('../config/database');
-const XeroConnection = require('../models/XeroConnection');
-const XeroSyncCursor = require('../models/XeroSyncCursor');
-const XeroWebhookEvent = require('../models/XeroWebhookEvent');
+const XeroSettings = require('../models/XeroSettings');
 
 const createTables = async () => {
   try {
@@ -167,10 +165,8 @@ const createTables = async () => {
       )
     `);
 
-    // Create Xero tables
-    await XeroConnection.createTable();
-    await XeroSyncCursor.createTable();
-    await XeroWebhookEvent.createTable();
+    // Create Xero settings table
+    await XeroSettings.createTable();
 
     console.log('Database tables created successfully');
   } catch (error) {
@@ -183,9 +179,7 @@ const dropTables = async () => {
   try {
     await db.query('DROP TABLE IF EXISTS companies CASCADE');
     await db.query('DROP TABLE IF EXISTS openai_settings CASCADE');
-    await db.query('DROP TABLE IF EXISTS xero_connections CASCADE');
-    await db.query('DROP TABLE IF EXISTS xero_sync_cursors CASCADE');
-    await db.query('DROP TABLE IF EXISTS xero_webhook_events CASCADE');
+    await db.query('DROP TABLE IF EXISTS xero_settings CASCADE');
     await db.query('DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE');
     console.log('Database tables dropped successfully');
   } catch (error) {
@@ -274,19 +268,38 @@ async function migrateOpenAISettings() {
 }
 
 /**
- * Run all migrations
+ * Run all migrations with retry logic
  */
 async function runAllMigrations() {
-  try {
-    console.log('🚀 Starting database migrations...');
-    
-    // Run OpenAI settings migration
-    await migrateOpenAISettings();
-    
-    console.log('✅ All migrations completed successfully');
-  } catch (error) {
-    console.error('❌ Migration failed:', error);
-    throw error;
+  const maxRetries = 3;
+  let retryCount = 0;
+  
+  while (retryCount < maxRetries) {
+    try {
+      console.log(`🚀 Starting database migrations (attempt ${retryCount + 1}/${maxRetries})...`);
+      
+      // Test database connection first
+      await db.query('SELECT 1');
+      console.log('✅ Database connection test successful');
+      
+      // Run OpenAI settings migration
+      await migrateOpenAISettings();
+      
+      console.log('✅ All migrations completed successfully');
+      return;
+      
+    } catch (error) {
+      retryCount++;
+      console.error(`❌ Migration attempt ${retryCount} failed:`, error.message);
+      
+      if (retryCount < maxRetries) {
+        console.log(`⏳ Retrying in ${retryCount * 2} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
+      } else {
+        console.error('❌ All migration attempts failed');
+        throw error;
+      }
+    }
   }
 }
 

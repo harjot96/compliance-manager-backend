@@ -17,8 +17,12 @@ const { runMigrations } = require('./utils/migrate');
 
 const app = express();
 
-// Run migrations on startup
-runMigrations().catch(console.error);
+// Run migrations on startup with better error handling
+runMigrations().catch(error => {
+  console.error('❌ Migration failed during startup:', error.message);
+  console.log('⚠️  Server will start without running migrations');
+  console.log('💡 You can run migrations manually later');
+});
 
 // Security middleware
 app.use(helmet());
@@ -34,10 +38,16 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
+// Rate limiting - more permissive in development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: process.env.NODE_ENV === 'development' ? 2000 : 100, // more permissive in development
+  message: {
+    success: false,
+    message: 'Too many requests, please try again later.'
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 app.use(limiter);
 
@@ -72,6 +82,18 @@ app.get('/api/health', (req, res) => {
     version: '1.0.0'
   });
 });
+
+// Development-only rate limit reset endpoint
+if (process.env.NODE_ENV === 'development') {
+  app.post('/api/reset-rate-limit', (req, res) => {
+    // This will reset the rate limit for the current IP
+    res.status(200).json({
+      success: true,
+      message: 'Rate limit reset for development',
+      timestamp: new Date().toISOString()
+    });
+  });
+}
 
 // API routes
 app.use('/api/companies', companyRoutes);

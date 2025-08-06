@@ -1,31 +1,38 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const xeroController = require('../controllers/xeroController');
 const auth = require('../middleware/auth');
+
+// Xero-specific rate limiter - more permissive for development
+const xeroLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'development' ? 500 : 50, // more permissive in development
+  message: {
+    success: false,
+    message: 'Too many Xero API requests, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // OAuth2 Authentication
 router.get('/login', auth, xeroController.buildAuthUrl);
 router.get('/callback', auth, xeroController.handleCallback);
 
-// Connections Management (role-based)
-router.get('/connections', auth, xeroController.getConnections);
-router.delete('/connections/:id', auth, xeroController.deleteConnection);
+// Company Information
+router.get('/company-info', auth, xeroController.getCompanyInfo);
 
-// Data Access (role-based)
-router.get('/:connectionId/invoices', auth, xeroController.getXeroData);
-router.get('/:connectionId/contacts', auth, xeroController.getXeroData);
-router.get('/:connectionId/bank-transactions', auth, xeroController.getXeroData);
-router.get('/:connectionId/accounts', auth, xeroController.getXeroData);
-router.get('/:connectionId/items', auth, xeroController.getXeroData);
+// Token Management
+router.post('/refresh-token', xeroController.refreshToken);
 
-// Sync Management (role-based)
-router.get('/:connectionId/sync-cursors', auth, xeroController.getSyncCursors);
-router.post('/:connectionId/sync-cursors/:resourceType/reset', auth, xeroController.resetSyncCursor);
+// Data Access
+router.post('/data/:resourceType', auth, xeroController.getXeroData);
 
-// Webhook Events (role-based)
-router.get('/:connectionId/webhook-events', auth, xeroController.getWebhookEvents);
-
-// Webhook Endpoint (no auth required, signature verification instead)
-router.post('/webhook', xeroController.handleWebhook);
+// Xero Settings Management
+router.post('/settings', xeroLimiter, auth, xeroController.createXeroSettings);
+router.get('/settings', xeroLimiter, auth, xeroController.getXeroSettings);
+router.delete('/settings', xeroLimiter, auth, xeroController.deleteXeroSettings);
+router.get('/settings/all', xeroLimiter, auth, xeroController.getAllXeroSettings);
 
 module.exports = router; 

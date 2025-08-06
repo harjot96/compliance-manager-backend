@@ -3,25 +3,36 @@ const Company = require('../models/Company');
 
 const authMiddleware = async (req, res, next) => {
   try {
+    console.log('🔍 DEBUG: authMiddleware called');
+    console.log('🔍 DEBUG: Authorization header:', req.header('Authorization'));
+    
     const token = req.header('Authorization')?.replace('Bearer ', '');
+    console.log('🔍 DEBUG: Extracted token:', token ? 'present' : 'missing');
     
     if (!token) {
+      console.log('🔍 DEBUG: No token provided');
       return res.status(401).json({
         success: false,
         message: 'Access denied. No token provided.'
       });
     }
 
+    console.log('🔍 DEBUG: Verifying token...');
     const decoded = verifyToken(token);
+    console.log('🔍 DEBUG: Token decoded, id:', decoded.id);
+    
     const company = await Company.findById(decoded.id);
+    console.log('🔍 DEBUG: Company found:', company ? 'yes' : 'no');
     
     if (!company) {
+      console.log('🔍 DEBUG: Company not found');
       return res.status(401).json({
         success: false,
         message: 'Invalid token. Company not found.'
       });
     }
 
+    console.log('🔍 DEBUG: Setting req.company:', company.id, company.role);
     req.company = company;
     next();
   } catch (error) {

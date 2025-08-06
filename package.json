@@ -5,9 +5,14 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "dev": "node dev-start.js",
+    "dev:simple": "nodemon src/server.js",
+    "dev:debug": "nodemon --inspect src/server.js",
+    "dev:verbose": "nodemon --verbose src/server.js",
     "test": "jest",
-    "migrate": "node src/utils/migrate.js"
+    "test:watch": "jest --watch",
+    "migrate": "node src/utils/migrate.js",
+    "migrate:watch": "nodemon --exec 'node src/utils/migrate.js' --watch src/utils/migrate.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",

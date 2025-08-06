@@ -1,16 +1,53 @@
-const XeroService = require('../services/XeroService');
-const XeroConnection = require('../models/XeroConnection');
-const XeroSyncCursor = require('../models/XeroSyncCursor');
-const XeroWebhookEvent = require('../models/XeroWebhookEvent');
-const Joi = require('joi');
+const axios = require('axios');
+const crypto = require('crypto');
+const CompanyCompliance = require('../models/CompanyCompliance');
+const XeroSettings = require('../models/XeroSettings');
+
+/**
+ * Check if company is enrolled (has compliance details)
+ * NOTE: This check has been disabled - Xero integration now works independently
+ */
+const isCompanyEnrolled = async (companyId) => {
+  // Disabled compliance requirement - Xero integration works independently
+  return true;
+};
 
 /**
  * Build OAuth2 authorization URL
  */
 const buildAuthUrl = async (req, res, next) => {
   try {
+    // Check if user is super admin
+    if (req.company.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Super admins cannot setup Xero accounts. Only regular companies can setup Xero integration.'
+      });
+    }
+
+    // Company enrollment check disabled - Xero integration works independently
+    const companyId = req.company.id;
+
+    // Get company's Xero settings
+    const xeroSettings = await XeroSettings.getByCompanyId(companyId);
+    if (!xeroSettings) {
+      return res.status(400).json({
+        success: false,
+        message: 'Xero settings not configured for this company. Please configure Xero settings first.'
+      });
+    }
+
     const state = crypto.randomBytes(16).toString('hex');
-    const authUrl = XeroService.buildAuthUrl(state);
+    
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: xeroSettings.client_id,
+      redirect_uri: xeroSettings.redirect_uri,
+      scope: 'openid profile email accounting.transactions accounting.contacts accounting.settings offline_access',
+      state: state
+    });
+
+    const authUrl = `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
     
     res.json({
       success: true,
@@ -31,12 +68,22 @@ const buildAuthUrl = async (req, res, next) => {
 };
 
 /**
- * Handle OAuth2 callback and create connections
+ * Handle OAuth2 callback and exchange code for tokens
  */
 const handleCallback = async (req, res, next) => {
   try {
+    // Check if user is super admin
+    if (req.company.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Super admins cannot setup Xero accounts. Only regular companies can setup Xero integration.'
+      });
+    }
+
+    // Company enrollment check disabled - Xero integration works independently
+    const companyId = req.company.id;
+
     const { code, state } = req.query;
-    const { tenantIds } = req.body; // Array of selected tenant IDs
 
     if (!code) {
       return res.status(400).json({
@@ -45,54 +92,53 @@ const handleCallback = async (req, res, next) => {
       });
     }
 
+    // Get company's Xero settings
+    const xeroSettings = await XeroSettings.getByCompanyId(companyId);
+    if (!xeroSettings) {
+      return res.status(400).json({
+        success: false,
+        message: 'Xero settings not configured for this company. Please configure Xero settings first.'
+      });
+    }
+
     // Exchange code for tokens
-    const tokens = await XeroService.exchangeCodeForTokens(code);
-    
-    // Get available tenants
-    const tempConnection = {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      accessTokenExpiresAt: new Date(Date.now() + (tokens.expiresIn * 1000))
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: xeroSettings.redirect_uri
+    });
+
+    const response = await axios.post('https://identity.xero.com/connect/token', params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${xeroSettings.client_id}:${xeroSettings.client_secret}`).toString('base64')}`
+      }
+    });
+
+    const tokens = {
+      accessToken: response.data.access_token,
+      refreshToken: response.data.refresh_token,
+      expiresIn: response.data.expires_in,
+      tokenType: response.data.token_type
     };
 
-    // Create temporary client to get tenants
-    const client = axios.create({
-      baseURL: XeroService.baseUrl,
+    // Get available tenants/organizations
+    const tenantsResponse = await axios.get('https://api.xero.com/connections', {
       headers: {
         'Authorization': `Bearer ${tokens.accessToken}`,
         'Content-Type': 'application/json'
       }
     });
 
-    const tenantsResponse = await client.get('/connections');
-    const availableTenants = tenantsResponse.data;
-
-    // If no specific tenants selected, use all available
-    const selectedTenants = tenantIds && tenantIds.length > 0 
-      ? availableTenants.filter(t => tenantIds.includes(t.id))
-      : availableTenants;
-
-    // Create connections for selected tenants
-    const connections = [];
-    for (const tenant of selectedTenants) {
-      const connection = await XeroConnection.saveConnection({
-        companyId: req.user.companyId || req.user.id,
-        tenantId: tenant.id,
-        tenantName: tenant.name,
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        accessTokenExpiresAt: new Date(Date.now() + (tokens.expiresIn * 1000)),
-        createdBy: req.user.id
-      });
-      connections.push(connection);
-    }
+    const tenants = tenantsResponse.data;
 
     res.json({
       success: true,
-      message: 'Xero connections created successfully',
+      message: 'Xero authentication successful',
       data: {
-        connections,
-        totalCreated: connections.length
+        tokens,
+        tenants,
+        companyId: req.company.id
       }
     });
 
@@ -107,47 +153,32 @@ const handleCallback = async (req, res, next) => {
 };
 
 /**
- * Get Xero connections (role-based)
- */
-const getConnections = async (req, res, next) => {
-  try {
-    let connections;
-
-    if (req.user.role === 'admin') {
-      // Super admin can see all connections
-      connections = await XeroConnection.getAllConnections();
-    } else {
-      // Companies can only see their own connections
-      connections = await XeroConnection.getConnectionsByCompany(req.user.companyId || req.user.id);
-    }
-
-    res.json({
-      success: true,
-      message: 'Xero connections retrieved successfully',
-      data: connections
-    });
-
-  } catch (error) {
-    console.error('Get Connections Error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get Xero connections',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get Xero data with role-based access
+ * Get Xero data (invoices, contacts, etc.)
  */
 const getXeroData = async (req, res, next) => {
   try {
-    const { connectionId } = req.params;
     const { resourceType } = req.params;
-    const { where, order, page = 1, pageSize = 100, modifiedSince } = req.query;
+    const { accessToken, tenantId } = req.body;
+
+    if (!accessToken || !tenantId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Access token and tenant ID are required'
+      });
+    }
 
     // Validate resource type
-    const validResourceTypes = ['invoices', 'contacts', 'bank-transactions', 'accounts', 'items'];
+    const validResourceTypes = [
+      'invoices', 
+      'contacts', 
+      'bank-transactions', 
+      'accounts', 
+      'items',
+      'tax-rates',
+      'tracking-categories',
+      'organization'
+    ];
+    
     if (!validResourceTypes.includes(resourceType)) {
       return res.status(400).json({
         success: false,
@@ -156,76 +187,48 @@ const getXeroData = async (req, res, next) => {
       });
     }
 
-    // Check access permissions
-    const connection = await XeroConnection.getConnectionById(connectionId);
-    if (!connection) {
-      return res.status(404).json({
-        success: false,
-        message: 'Connection not found'
-      });
-    }
-
-    // Role-based access control
-    if (req.user.role !== 'admin' && connection.companyId !== (req.user.companyId || req.user.id)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
-    }
-
-    // Get data based on resource type
-    let data;
-    const options = {
-      where: where || '',
-      order: order || '',
-      page: parseInt(page),
-      pageSize: Math.min(parseInt(pageSize), 100),
-      modifiedSince: modifiedSince ? new Date(modifiedSince) : null
-    };
-
-    switch (resourceType) {
-      case 'invoices':
-        data = await XeroService.getInvoices(connectionId, options);
-        break;
-      case 'contacts':
-        data = await XeroService.getContacts(connectionId, options);
-        break;
-      case 'bank-transactions':
-        data = await XeroService.getBankTransactions(connectionId, options);
-        break;
-      case 'accounts':
-        data = await XeroService.getAccounts(connectionId, options);
-        break;
-      case 'items':
-        data = await XeroService.getItems(connectionId, options);
-        break;
-      default:
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid resource type'
-        });
-    }
+    // Make API request to Xero
+    const response = await axios.get(`https://api.xero.com/api.xro/2.0/${resourceType}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Xero-tenant-id': tenantId,
+        'Content-Type': 'application/json'
+      }
+    });
 
     res.json({
       success: true,
       message: `${resourceType} retrieved successfully`,
-      data: {
-        items: data[resourceType] || [],
-        pagination: {
-          page: options.page,
-          pageSize: options.pageSize,
-          total: data.pagination?.total || 0
-        },
-        connection: {
-          id: connection.id,
-          tenantName: connection.tenantName,
-          status: connection.status
-        }
-      }
+      data: response.data
     });
 
   } catch (error) {
     console.error('Get Xero Data Error:', error);
+    
+    if (error.response?.status === 401) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication failed. Please reconnect your Xero account.',
+        error: error.message
+      });
+    }
+    
+    if (error.response?.status === 403) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions for this operation.',
+        error: error.message
+      });
+    }
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        message: 'Resource not found.',
+        error: error.message
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to get Xero data',
@@ -235,238 +238,283 @@ const getXeroData = async (req, res, next) => {
 };
 
 /**
- * Delete Xero connection (role-based)
+ * Refresh access token
  */
-const deleteConnection = async (req, res, next) => {
+const refreshToken = async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const { refreshToken, companyId } = req.body;
 
-    // Check if connection exists and user has access
-    const connection = await XeroConnection.getConnectionById(id);
-    if (!connection) {
-      return res.status(404).json({
+    if (!refreshToken || !companyId) {
+      return res.status(400).json({
         success: false,
-        message: 'Connection not found'
+        message: 'Refresh token and company ID are required'
       });
     }
 
-    // Role-based access control
-    if (req.user.role !== 'admin' && connection.companyId !== (req.user.companyId || req.user.id)) {
-      return res.status(403).json({
+    // Get company's Xero settings
+    const xeroSettings = await XeroSettings.getByCompanyId(companyId);
+    if (!xeroSettings) {
+      return res.status(400).json({
         success: false,
-        message: 'Access denied'
+        message: 'Xero settings not configured for this company'
       });
     }
 
-    const result = await XeroConnection.deleteConnection(id);
-    
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken
+    });
+
+    const response = await axios.post('https://identity.xero.com/connect/token', params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${xeroSettings.client_id}:${xeroSettings.client_secret}`).toString('base64')}`
+      }
+    });
+
+    const tokens = {
+      accessToken: response.data.access_token,
+      refreshToken: response.data.refresh_token,
+      expiresIn: response.data.expires_in,
+      tokenType: response.data.token_type
+    };
+
     res.json({
       success: true,
-      message: 'Xero connection deleted successfully',
-      data: result
+      message: 'Token refreshed successfully',
+      data: tokens
     });
 
   } catch (error) {
-    console.error('Delete Connection Error:', error);
+    console.error('Refresh Token Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete Xero connection',
+      message: 'Failed to refresh token',
       error: error.message
     });
   }
 };
 
 /**
- * Handle Xero webhook
+ * Get company information for Xero integration
  */
-const handleWebhook = async (req, res, next) => {
+const getCompanyInfo = async (req, res, next) => {
   try {
-    const signature = req.headers['x-xero-signature'];
-    const payload = JSON.stringify(req.body);
+    const companyId = req.company.id;
+    const isEnrolled = await isCompanyEnrolled(companyId);
 
-    if (!signature) {
-      return res.status(401).json({
-        success: false,
-        message: 'Missing webhook signature'
-      });
-    }
+    const companyData = {
+      id: req.company.id,
+      companyName: req.company.companyName,
+      email: req.company.email,
+      role: req.company.role,
+      isEnrolled,
+      enrollmentStatus: {
+        isEnrolled,
+        message: 'Xero integration is now independent of compliance enrollment'
+      }
+    };
 
-    // Verify webhook signature
-    if (!(await XeroService.verifyWebhookSignature(payload, signature))) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid webhook signature'
-      });
-    }
-
-    // Parse webhook events
-    const events = XeroService.parseWebhookPayload(payload);
-
-    // Save events to database
-    const savedEvents = [];
-    for (const event of events) {
-      // Find connection by tenant ID (you might need to adjust this based on your webhook setup)
-      const connections = await XeroConnection.getConnectionsByCompany(req.user.companyId || req.user.id);
-      const connection = connections.find(c => c.tenantId === event.payload.tenantId);
-
-      if (connection) {
-        const savedEvent = await XeroWebhookEvent.saveEvent({
-          connectionId: connection.id,
-          eventId: event.eventId,
-          eventType: event.eventType,
-          resourceType: event.resourceType,
-          resourceId: event.resourceId,
-          eventDate: event.eventDate,
-          payload: event.payload
-        });
-
-        if (savedEvent) {
-          savedEvents.push(savedEvent);
+    // If enrolled, get compliance details
+    if (isEnrolled) {
+      try {
+        const compliance = await CompanyCompliance.getByCompanyId(companyId);
+        if (compliance) {
+          companyData.compliance = {
+            basFrequency: compliance.basFrequency,
+            nextBasDue: compliance.nextBasDue,
+            fbtApplicable: compliance.fbtApplicable,
+            nextFbtDue: compliance.nextFbtDue,
+            iasRequired: compliance.iasRequired,
+            iasFrequency: compliance.iasFrequency,
+            nextIasDue: compliance.nextIasDue,
+            financialYearEnd: compliance.financialYearEnd
+          };
         }
+      } catch (error) {
+        console.error('Error fetching compliance details:', error);
       }
     }
 
     res.json({
       success: true,
-      message: 'Webhook processed successfully',
+      message: 'Company information retrieved successfully',
+      data: companyData
+    });
+  } catch (error) {
+    console.error('Get Company Info Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve company information',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Create or update Xero settings for a company
+ */
+const createXeroSettings = async (req, res, next) => {
+  try {
+    console.log('🔍 DEBUG: createXeroSettings called');
+    console.log('🔍 DEBUG: req.body:', req.body);
+    
+    const companyId = req.company.id;
+    const { clientId, clientSecret, redirectUri } = req.body;
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      return res.status(400).json({
+        success: false,
+        message: 'Client ID, Client Secret, and Redirect URI are required'
+      });
+    }
+
+    // Validate redirect URI format
+    try {
+      new URL(redirectUri);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid redirect URI format'
+      });
+    }
+
+    const settings = await XeroSettings.createSettings(companyId, {
+      clientId,
+      clientSecret,
+      redirectUri
+    });
+
+    res.json({
+      success: true,
+      message: 'Xero settings saved successfully',
       data: {
-        eventsReceived: events.length,
-        eventsSaved: savedEvents.length
+        id: settings.id,
+        companyId: settings.company_id,
+        clientId: settings.client_id,
+        redirectUri: settings.redirect_uri,
+        createdAt: settings.created_at,
+        updatedAt: settings.updated_at
       }
     });
 
   } catch (error) {
-    console.error('Webhook Error:', error);
+    console.error('Create Xero Settings Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to process webhook',
+      message: 'Failed to save Xero settings',
       error: error.message
     });
   }
 };
 
 /**
- * Get sync cursors (role-based)
+ * Get Xero settings for a company
  */
-const getSyncCursors = async (req, res, next) => {
+const getXeroSettings = async (req, res, next) => {
   try {
-    const { connectionId } = req.params;
+    const companyId = req.company.id;
+    const settings = await XeroSettings.getByCompanyId(companyId);
 
-    // Check access permissions
-    const connection = await XeroConnection.getConnectionById(connectionId);
-    if (!connection) {
+    if (!settings) {
       return res.status(404).json({
         success: false,
-        message: 'Connection not found'
+        message: 'Xero settings not found for this company'
       });
     }
-
-    // Role-based access control
-    if (req.user.role !== 'admin' && connection.companyId !== (req.user.companyId || req.user.id)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
-    }
-
-    const cursors = await XeroSyncCursor.getCursorsByConnection(connectionId);
 
     res.json({
       success: true,
-      message: 'Sync cursors retrieved successfully',
-      data: cursors
+      message: 'Xero settings retrieved successfully',
+      data: {
+        id: settings.id,
+        companyId: settings.company_id,
+        clientId: settings.client_id,
+        redirectUri: settings.redirect_uri,
+        createdAt: settings.created_at,
+        updatedAt: settings.updated_at
+      }
     });
 
   } catch (error) {
-    console.error('Get Sync Cursors Error:', error);
+    console.error('Get Xero Settings Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get sync cursors',
+      message: 'Failed to get Xero settings',
       error: error.message
     });
   }
 };
 
 /**
- * Reset sync cursor (role-based)
+ * Delete Xero settings for a company
  */
-const resetSyncCursor = async (req, res, next) => {
+const deleteXeroSettings = async (req, res, next) => {
   try {
-    const { connectionId, resourceType } = req.params;
+    const companyId = req.company.id;
+    const settings = await XeroSettings.deleteSettings(companyId);
 
-    // Check access permissions
-    const connection = await XeroConnection.getConnectionById(connectionId);
-    if (!connection) {
+    if (!settings) {
       return res.status(404).json({
         success: false,
-        message: 'Connection not found'
+        message: 'Xero settings not found for this company'
       });
     }
-
-    // Role-based access control
-    if (req.user.role !== 'admin' && connection.companyId !== (req.user.companyId || req.user.id)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
-    }
-
-    const cursor = await XeroSyncCursor.resetCursor(connectionId, resourceType);
 
     res.json({
       success: true,
-      message: 'Sync cursor reset successfully',
-      data: cursor
+      message: 'Xero settings deleted successfully',
+      data: {
+        id: settings.id,
+        companyId: settings.company_id
+      }
     });
 
   } catch (error) {
-    console.error('Reset Sync Cursor Error:', error);
+    console.error('Delete Xero Settings Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to reset sync cursor',
+      message: 'Failed to delete Xero settings',
       error: error.message
     });
   }
 };
 
 /**
- * Get webhook events (role-based)
+ * Get all Xero settings (admin only)
  */
-const getWebhookEvents = async (req, res, next) => {
+const getAllXeroSettings = async (req, res, next) => {
   try {
-    const { connectionId } = req.params;
-    const { limit = 50 } = req.query;
-
-    // Check access permissions
-    const connection = await XeroConnection.getConnectionById(connectionId);
-    if (!connection) {
-      return res.status(404).json({
-        success: false,
-        message: 'Connection not found'
-      });
-    }
-
-    // Role-based access control
-    if (req.user.role !== 'admin' && connection.companyId !== (req.user.companyId || req.user.id)) {
+    // Check if user is admin
+    if (req.company.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Access denied'
+        message: 'Access denied. Admin privileges required.'
       });
     }
 
-    const events = await XeroWebhookEvent.getEventsByConnection(connectionId, parseInt(limit));
+    const settings = await XeroSettings.getAllSettings();
 
     res.json({
       success: true,
-      message: 'Webhook events retrieved successfully',
-      data: events
+      message: 'All Xero settings retrieved successfully',
+      data: settings.map(setting => ({
+        id: setting.id,
+        companyId: setting.company_id,
+        companyName: setting.company_name,
+        email: setting.email,
+        clientId: setting.client_id,
+        redirectUri: setting.redirect_uri,
+        createdAt: setting.created_at,
+        updatedAt: setting.updated_at
+      }))
     });
 
   } catch (error) {
-    console.error('Get Webhook Events Error:', error);
+    console.error('Get All Xero Settings Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get webhook events',
+      message: 'Failed to get all Xero settings',
       error: error.message
     });
   }
@@ -475,11 +523,11 @@ const getWebhookEvents = async (req, res, next) => {
 module.exports = {
   buildAuthUrl,
   handleCallback,
-  getConnections,
   getXeroData,
-  deleteConnection,
-  handleWebhook,
-  getSyncCursors,
-  resetSyncCursor,
-  getWebhookEvents
+  refreshToken,
+  getCompanyInfo,
+  createXeroSettings,
+  getXeroSettings,
+  deleteXeroSettings,
+  getAllXeroSettings
 }; 

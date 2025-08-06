@@ -4,14 +4,24 @@ const notificationTemplateController = require('../controllers/notificationTempl
 const notificationSettingController = require('../controllers/notificationSettingController');
 const companyController = require('../controllers/companyController');
 
+// ========================================
+// AUTHENTICATION ROUTES
+// ========================================
+
 // Authentication routes
 router.post('/register', companyController.register);
 router.post('/login', companyController.login);
 router.post('/register-super-admin', companyController.registerSuperAdmin);
 
-// Add /settings and /all routes
+// ========================================
+// NOTIFICATION SETTINGS ROUTES
+// ========================================
 router.get('/settings', notificationSettingController.getAllSettings);
 router.post('/settings', notificationSettingController.createSetting);
+
+// ========================================
+// COMPANY MANAGEMENT ROUTES
+// ========================================
 router.get('/all', companyController.getAllCompaniesNoPagination);
 
 // Simple test routes

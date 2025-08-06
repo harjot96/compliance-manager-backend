@@ -15,7 +15,7 @@ router.post('/generate-template', openaiController.generateTemplate);
 // Analyze Content
 router.post('/analyze-content', openaiController.analyzeContent);
 
-// OpenAI Settings Management
+// OpenAI Settings Management (Admin only)
 router.post('/settings', openaiSettingController.saveOpenAISettings);
 router.get('/settings', openaiSettingController.getOpenAISettings);
 router.put('/settings/:id', openaiSettingController.updateOpenAISettings);

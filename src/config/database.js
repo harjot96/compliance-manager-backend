@@ -7,10 +7,12 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'compliance_management',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-  ssl: { rejectUnauthorized: false } // Enable SSL for external DBs
+  max: 10, // Reduced from 20
+  min: 2, // Add minimum connections
+  idleTimeoutMillis: 60000, // Increased from 30000
+  connectionTimeoutMillis: 10000, // Increased from 2000
+  acquireTimeoutMillis: 10000, // Add acquire timeout
+  ssl: process.env.DB_HOST && process.env.DB_HOST.includes('render.com') ? { rejectUnauthorized: false } : false
 });
 
 // Test database connection
