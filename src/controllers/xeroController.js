@@ -72,18 +72,8 @@ const buildAuthUrl = async (req, res, next) => {
  */
 const handleCallback = async (req, res, next) => {
   try {
-    // Check if user is super admin
-    if (req.company.role === 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Super admins cannot setup Xero accounts. Only regular companies can setup Xero integration.'
-      });
-    }
-
-    // Company enrollment check disabled - Xero integration works independently
-    const companyId = req.company.id;
-
-    const { code, state } = req.query;
+    // No auth check here, since this is a public endpoint
+    const { code, state } = req.body;
 
     if (!code) {
       return res.status(400).json({
@@ -91,6 +81,16 @@ const handleCallback = async (req, res, next) => {
         message: 'Authorization code is required'
       });
     }
+
+    // You may need to determine companyId by state or other means
+    // For now, you may need to look up company by state or other session info
+    // Example: const companyId = await getCompanyIdFromState(state);
+    // For demo, just return error if not implemented
+    // TODO: Implement company lookup by state
+    return res.status(400).json({
+      success: false,
+      message: 'Company lookup by state not implemented. You must associate the OAuth state with a company.'
+    });
 
     // Get company's Xero settings
     const xeroSettings = await XeroSettings.getByCompanyId(companyId);

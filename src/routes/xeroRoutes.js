@@ -18,7 +18,7 @@ const xeroLimiter = rateLimit({
 
 // OAuth2 Authentication
 router.get('/login', auth, xeroController.buildAuthUrl);
-router.get('/callback', auth, xeroController.handleCallback);
+router.post('/callback', xeroController.handleCallback);
 
 // Company Information
 router.get('/company-info', auth, xeroController.getCompanyInfo);
