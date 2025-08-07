@@ -252,8 +252,11 @@ const handleCallback = async (req, res, next) => {
       status: error.response?.status,
       stack: error.stack
     });
+    // Handle both GET and POST requests for state extraction
+    const { code, state } = req.method === 'GET' ? req.query : req.body;
     console.error('❌ Request body:', req.body);
-    console.error('❌ State from request:', req.body.state);
+    console.error('❌ Request query:', req.query);
+    console.error('❌ State from request:', state);
     
     // Provide more specific error messages
     let errorMessage = 'Failed to complete OAuth flow';
@@ -268,12 +271,14 @@ const handleCallback = async (req, res, next) => {
     // Try to get the redirect URI from the state lookup
     let redirectUrl = null;
     try {
-      const stateResult = await db.query('SELECT company_id FROM xero_oauth_states WHERE state = $1', [req.body.state]);
-      if (stateResult.rows.length > 0) {
-        const companyId = stateResult.rows[0].company_id;
-        const xeroSettings = await XeroSettings.getByCompanyId(companyId);
-        if (xeroSettings) {
-          redirectUrl = new URL(xeroSettings.redirect_uri.replace('/api/xero/callback', ''));
+      if (state) {
+        const stateResult = await db.query('SELECT company_id FROM xero_oauth_states WHERE state = $1', [state]);
+        if (stateResult.rows.length > 0) {
+          const companyId = stateResult.rows[0].company_id;
+          const xeroSettings = await XeroSettings.getByCompanyId(companyId);
+          if (xeroSettings) {
+            redirectUrl = new URL('https://compliance-manager-frontend.onrender.com/redirecturl');
+          }
         }
       }
     } catch (redirectError) {
