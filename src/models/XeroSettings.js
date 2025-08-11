@@ -126,6 +126,9 @@ class XeroSettings {
           client_id VARCHAR(255) NOT NULL,
           client_secret VARCHAR(255) NOT NULL,
           redirect_uri VARCHAR(500) NOT NULL,
+          access_token TEXT,
+          refresh_token TEXT,
+          token_expires_at TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -141,6 +144,39 @@ class XeroSettings {
       console.log('Xero settings table created successfully');
     } catch (error) {
       console.error('Error creating xero_settings table:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add token columns if they don't exist (for existing tables)
+   */
+  static async addTokenColumns() {
+    try {
+      // Check if access_token column exists
+      const checkQuery = `
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'xero_settings' AND column_name = 'access_token'
+      `;
+      
+      const result = await db.query(checkQuery);
+      
+      if (result.rows.length === 0) {
+        // Add token columns
+        await db.query(`
+          ALTER TABLE xero_settings 
+          ADD COLUMN access_token TEXT,
+          ADD COLUMN refresh_token TEXT,
+          ADD COLUMN token_expires_at TIMESTAMP
+        `);
+        
+        console.log('Token columns added to xero_settings table');
+      } else {
+        console.log('Token columns already exist in xero_settings table');
+      }
+    } catch (error) {
+      console.error('Error adding token columns:', error);
       throw error;
     }
   }

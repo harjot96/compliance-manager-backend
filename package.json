@@ -12,7 +12,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "migrate": "node src/utils/migrate.js",
-    "migrate:watch": "nodemon --exec 'node src/utils/migrate.js' --watch src/utils/migrate.js"
+    "migrate:watch": "nodemon --exec 'node src/utils/migrate.js' --watch src/utils/migrate.js",
+    "build": "echo 'No build step required for Node.js'",
+    "postinstall": "node src/utils/migrate.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",

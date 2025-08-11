@@ -24,11 +24,36 @@ router.get('/callback', xeroController.handleCallback); // Add GET route for OAu
 // Company Information
 router.get('/company-info', auth, xeroController.getCompanyInfo);
 
+// Connection Status
+router.get('/connection-status', auth, xeroController.getConnectionStatus);
+
 // Token Management
 router.post('/refresh-token', xeroController.refreshToken);
 
-// Data Access
+// Data Access - Individual Resources
 router.post('/data/:resourceType', auth, xeroController.getXeroData);
+
+// Comprehensive Data Endpoints
+router.get('/dashboard-data', auth, xeroController.getDashboardData);
+router.get('/financial-summary', auth, xeroController.getFinancialSummary);
+router.get('/all-invoices', auth, xeroController.getAllInvoices);
+router.get('/all-contacts', auth, xeroController.getAllContacts);
+router.get('/all-bank-transactions', auth, xeroController.getAllBankTransactions);
+router.get('/all-accounts', auth, xeroController.getAllAccounts);
+router.get('/all-items', auth, xeroController.getAllItems);
+router.get('/all-tax-rates', auth, xeroController.getAllTaxRates);
+router.get('/all-tracking-categories', auth, xeroController.getAllTrackingCategories);
+router.get('/organization-details', auth, xeroController.getOrganizationDetails);
+
+// Additional Xero API Endpoints
+router.get('/all-purchase-orders', auth, xeroController.getAllPurchaseOrders);
+router.get('/all-receipts', auth, xeroController.getAllReceipts);
+router.get('/all-credit-notes', auth, xeroController.getAllCreditNotes);
+router.get('/all-manual-journals', auth, xeroController.getAllManualJournals);
+router.get('/all-prepayments', auth, xeroController.getAllPrepayments);
+router.get('/all-overpayments', auth, xeroController.getAllOverpayments);
+router.get('/all-quotes', auth, xeroController.getAllQuotes);
+router.get('/reports', auth, xeroController.getAllReports);
 
 // Xero Settings Management
 router.post('/settings', xeroLimiter, auth, xeroController.createXeroSettings);
@@ -38,5 +63,6 @@ router.get('/settings/all', xeroLimiter, auth, xeroController.getAllXeroSettings
 
 // Xero-specific state creation for OAuth
 router.post('/create-auth-state', auth, xeroController.createXeroAuthState);
+router.get('/auth-state/:state', auth, xeroController.getXeroAuthState);
 
 module.exports = router; 
