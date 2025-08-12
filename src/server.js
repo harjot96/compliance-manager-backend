@@ -53,15 +53,22 @@ app.use(cors({
       return callback(new Error('Localhost origins not allowed in production'), false);
     }
     
-    const allowedOrigins = [
-      'http://localhost:3001',
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'https://compliance-manager-frontend.onrender.com',
-      'https://compliance-manager-frontend.onrender.com/',
-      'https://compliance-manager-frontend.onrender.com/redirecturl',
-      'https://compliance-manager-frontend.onrender.com/xero-callback'
-    ];
+    const allowedOrigins = process.env.NODE_ENV === 'production' 
+      ? [
+          'https://compliance-manager-frontend.onrender.com',
+          'https://compliance-manager-frontend.onrender.com/',
+          'https://compliance-manager-frontend.onrender.com/redirecturl',
+          'https://compliance-manager-frontend.onrender.com/xero-callback'
+        ]
+      : [
+          'http://localhost:3001',
+          'http://localhost:3000',
+          'http://localhost:5173',
+          'https://compliance-manager-frontend.onrender.com',
+          'https://compliance-manager-frontend.onrender.com/',
+          'https://compliance-manager-frontend.onrender.com/redirecturl',
+          'https://compliance-manager-frontend.onrender.com/xero-callback'
+        ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
