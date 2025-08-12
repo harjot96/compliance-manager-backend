@@ -870,13 +870,30 @@ const getDashboardData = async (req, res) => {
     const totalAccounts = accArr.length;
 
     // Totals (Xero returns PascalCase fields like Total, Status, DueDate)
-    const totalAmount = invArr.reduce((sum, inv) => sum + (parseFloat(inv.Total) || 0), 0);
+    const totalAmount = invArr.reduce((sum, inv) => {
+      try {
+        return sum + (parseFloat(inv.Total) || 0);
+      } catch (error) {
+        console.log('⚠️ Error parsing invoice total:', inv.Total, 'for invoice:', inv.InvoiceNumber || inv.ID);
+        return sum;
+      }
+    }, 0);
     const paidInvoices = invArr.filter((inv) => inv.Status === 'PAID').length;
 
     const nowISO = new Date().toISOString();
-    const overdueInvoices = invArr.filter(
-      (inv) => inv.Status !== 'PAID' && inv.DueDate && new Date(inv.DueDate).toISOString() < nowISO
-    ).length;
+    const overdueInvoices = invArr.filter((inv) => {
+      if (inv.Status === 'PAID' || !inv.DueDate) return false;
+      
+      try {
+        const dueDate = new Date(inv.DueDate);
+        // Check if the date is valid
+        if (isNaN(dueDate.getTime())) return false;
+        return dueDate.toISOString() < nowISO;
+      } catch (error) {
+        console.log('⚠️ Invalid due date format:', inv.DueDate, 'for invoice:', inv.InvoiceNumber || inv.ID);
+        return false;
+      }
+    }).length;
 
     const isOrganizationEmpty = totalInvoices === 0 && totalContacts === 0 && totalTransactions === 0;
 
@@ -911,13 +928,27 @@ const getDashboardData = async (req, res) => {
     });
   } catch (error) {
     console.error('Dashboard Data Error:', error);
+    console.error('Error stack:', error.stack);
 
     let errorMessage = 'Failed to retrieve dashboard data';
     let statusCode = 500;
-    if (error.response?.status === 429) { errorMessage = 'Rate limit exceeded. Please try again in a few minutes.'; statusCode = 429; }
-    else if (error.response?.status === 401) { errorMessage = 'Authentication failed. Please reconnect to Xero.'; statusCode = 401; }
-    else if (error.response?.status === 403) { errorMessage = 'Access denied. Please check your Xero permissions.'; statusCode = 403; }
-    else if (error.code === 'ECONNREFUSED') { errorMessage = 'Unable to connect to Xero. Please check your internet connection.'; statusCode = 503; }
+    
+    if (error.message === 'Invalid time value') {
+      errorMessage = 'Date parsing error in Xero data. Please try again.';
+      statusCode = 422;
+    } else if (error.response?.status === 429) { 
+      errorMessage = 'Rate limit exceeded. Please try again in a few minutes.'; 
+      statusCode = 429; 
+    } else if (error.response?.status === 401) { 
+      errorMessage = 'Authentication failed. Please reconnect to Xero.'; 
+      statusCode = 401; 
+    } else if (error.response?.status === 403) { 
+      errorMessage = 'Access denied. Please check your Xero permissions.'; 
+      statusCode = 403; 
+    } else if (error.code === 'ECONNREFUSED') { 
+      errorMessage = 'Unable to connect to Xero. Please check your internet connection.'; 
+      statusCode = 503; 
+    }
 
     res.status(statusCode).json({ success: false, message: errorMessage, error: error.message });
   }
@@ -1219,7 +1250,19 @@ const getConnectionStatus = async (req, res) => {
     }
 
     const now = new Date();
-    const tokenExpiresAt = settings.token_expires_at ? new Date(settings.token_expires_at) : null;
+    let tokenExpiresAt = null;
+    if (settings.token_expires_at) {
+      try {
+        tokenExpiresAt = new Date(settings.token_expires_at);
+        if (isNaN(tokenExpiresAt.getTime())) {
+          console.log('⚠️ Invalid token expiration date in database:', settings.token_expires_at);
+          tokenExpiresAt = null;
+        }
+      } catch (error) {
+        console.log('⚠️ Error parsing token expiration date:', settings.token_expires_at, error.message);
+        tokenExpiresAt = null;
+      }
+    }
 
     if (tokenExpiresAt && tokenExpiresAt <= now) {
       try {
