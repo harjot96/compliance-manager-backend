@@ -152,6 +152,13 @@ app.use('/api/openai', openaiRoutes);
 app.use('/api/openai-admin', openaiSettingRoutes);
 app.use('/api/xero', xeroRoutes);
 
+// Redirect duplicate /api/ routes to correct paths
+app.use('/api/api/*', (req, res) => {
+  const newPath = req.originalUrl.replace('/api/api/', '/api/');
+  console.log(`🔄 Redirecting ${req.originalUrl} to ${newPath}`);
+  res.redirect(307, newPath);
+});
+
 // Redirect URL handler for frontend OAuth redirects
 app.get('/redirecturl', (req, res) => {
   console.log('🔄 Redirect URL accessed:', req.url);
