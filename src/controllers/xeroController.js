@@ -91,7 +91,13 @@ const buildAuthUrl = async (req, res) => {
     );
 
     // CRITICAL: redirect_uri must match EXACTLY what you registered + what you will use in token exchange
-    const redirectUri = xeroSettings.redirect_uri;
+    // Use environment-based redirect URI to ensure no localhost in production
+    const { getFrontendRedirectUrl } = require('../config/environment');
+    const redirectUri = getFrontendRedirectUrl();
+    
+    // Log the redirect URI being used for debugging
+    console.log('🔍 Using redirect URI:', redirectUri);
+    console.log('🔍 Environment:', process.env.NODE_ENV || 'development');
 
     const params = new URLSearchParams({
       response_type: 'code',
@@ -207,10 +213,13 @@ const handleCallback = async (req, res) => {
     }
 
     // Exchange code for tokens (IMPORTANT: same redirect_uri as used in auth step)
+    const { getFrontendRedirectUrl } = require('../config/environment');
+    const redirectUri = getFrontendRedirectUrl();
+    
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: xeroSettings.redirect_uri
+      redirect_uri: redirectUri
     });
 
     let tokenResp;
@@ -563,15 +572,32 @@ const createXeroSettings = async (req, res) => {
     const companyId = req.company.id;
     const { clientId, clientSecret, redirectUri } = req.body;
 
-    if (!clientId || !clientSecret || !redirectUri) {
-      return res.status(400).json({ success: false, message: 'Client ID, Client Secret, and Redirect URI are required' });
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ success: false, message: 'Client ID and Client Secret are required' });
     }
 
-    try { new URL(redirectUri); } catch {
+    // Use environment-based redirect URI to ensure no localhost in production
+    const { getFrontendRedirectUrl } = require('../config/environment');
+    const environmentRedirectUri = getFrontendRedirectUrl();
+    
+    // Use provided redirectUri only if it matches the environment-based one
+    const finalRedirectUri = redirectUri || environmentRedirectUri;
+    
+    // Validate that the redirect URI doesn't contain localhost in production
+    if (process.env.NODE_ENV === 'production' && finalRedirectUri.includes('localhost')) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Localhost URLs are not allowed in production. Please use a production URL.',
+        errorCode: 'LOCALHOST_NOT_ALLOWED_IN_PRODUCTION',
+        suggestedUrl: environmentRedirectUri
+      });
+    }
+
+    try { new URL(finalRedirectUri); } catch {
       return res.status(400).json({ success: false, message: 'Invalid redirect URI format' });
     }
 
-    const settings = await XeroSettings.createSettings(companyId, { clientId, clientSecret, redirectUri });
+    const settings = await XeroSettings.createSettings(companyId, { clientId, clientSecret, redirectUri: finalRedirectUri });
 
     res.json({
       success: true,
@@ -581,6 +607,7 @@ const createXeroSettings = async (req, res) => {
         companyId: settings.company_id,
         clientId: settings.client_id,
         redirectUri: settings.redirect_uri,
+        environmentRedirectUri,
         createdAt: settings.created_at,
         updatedAt: settings.updated_at
       }
@@ -711,6 +738,9 @@ const getAllXeroSettings = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied. Admin privileges required.' });
     }
     const settings = await XeroSettings.getAllSettings();
+    const { getFrontendRedirectUrl } = require('../config/environment');
+    const environmentRedirectUri = getFrontendRedirectUrl();
+    
     res.json({
       success: true,
       message: 'All Xero settings retrieved successfully',
@@ -721,6 +751,8 @@ const getAllXeroSettings = async (req, res) => {
         email: s.email,
         clientId: s.client_id,
         redirectUri: s.redirect_uri,
+        environmentRedirectUri,
+        needsUpdate: s.redirect_uri !== environmentRedirectUri,
         createdAt: s.created_at,
         updatedAt: s.updated_at
       }))
@@ -728,6 +760,53 @@ const getAllXeroSettings = async (req, res) => {
   } catch (error) {
     console.error('Get All Xero Settings Error:', error);
     res.status(500).json({ success: false, message: 'Failed to get all Xero settings', error: error.message });
+  }
+};
+
+/**
+ * Update redirect URIs for all companies to match current environment
+ */
+const updateAllRedirectUris = async (req, res) => {
+  try {
+    if (req.company.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. Admin privileges required.' });
+    }
+    
+    const { getFrontendRedirectUrl } = require('../config/environment');
+    const environmentRedirectUri = getFrontendRedirectUrl();
+    
+    // Get all settings
+    const settings = await XeroSettings.getAllSettings();
+    const updatedSettings = [];
+    
+    for (const setting of settings) {
+      if (setting.redirect_uri !== environmentRedirectUri) {
+        // Update the redirect URI
+        const updated = await XeroSettings.updateSettings(setting.company_id, {
+          clientId: setting.client_id,
+          clientSecret: setting.client_secret,
+          redirectUri: environmentRedirectUri
+        });
+        updatedSettings.push(updated);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Updated ${updatedSettings.length} redirect URIs to match current environment`,
+      data: {
+        environmentRedirectUri,
+        updatedCount: updatedSettings.length,
+        updatedSettings: updatedSettings.map(s => ({
+          companyId: s.company_id,
+          oldRedirectUri: settings.find(orig => orig.company_id === s.company_id)?.redirect_uri,
+          newRedirectUri: s.redirect_uri
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Update All Redirect URIs Error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update redirect URIs', error: error.message });
   }
 };
 
@@ -1458,6 +1537,7 @@ module.exports = {
   getXeroSettings,
   deleteXeroSettings,
   getAllXeroSettings,
+  updateAllRedirectUris,
   createXeroAuthState,
   getXeroAuthState,
   getConnectionStatus,

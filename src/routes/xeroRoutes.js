@@ -61,6 +61,7 @@ router.post('/settings', xeroLimiter, auth, xeroController.createXeroSettings);
 router.get('/settings', xeroLimiter, auth, xeroController.getXeroSettings);
 router.delete('/settings', xeroLimiter, auth, xeroController.deleteXeroSettings);
 router.get('/settings/all', xeroLimiter, auth, xeroController.getAllXeroSettings);
+router.post('/settings/update-redirect-uris', xeroLimiter, auth, xeroController.updateAllRedirectUris);
 
 // Xero-specific state creation for OAuth
 router.post('/create-auth-state', auth, xeroController.createXeroAuthState);

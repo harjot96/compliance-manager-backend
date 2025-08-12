@@ -14,8 +14,22 @@ const openaiSettingRoutes = require('./routes/openaiSettingRoutes');
 const xeroRoutes = require('./routes/xeroRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const { runMigrations } = require('./utils/migrate');
+const { validateProductionUrls } = require('./config/environment');
 
 const app = express();
+
+// Validate production URLs on startup
+try {
+  validateProductionUrls();
+} catch (error) {
+  console.error('❌ Production URL validation failed:', error.message);
+  if (process.env.NODE_ENV === 'production') {
+    console.error('🚨 CRITICAL: Production URLs contain localhost. Server cannot start safely.');
+    process.exit(1);
+  } else {
+    console.log('⚠️  Development mode - continuing with localhost URLs');
+  }
+}
 
 // Run migrations on startup with better error handling
 runMigrations().catch(error => {
@@ -27,11 +41,17 @@ runMigrations().catch(error => {
 // Security middleware
 app.use(helmet());
 
-// CORS configuration - more permissive for OAuth redirects
+// CORS configuration - production-safe with localhost restrictions
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
+    
+    // In production, never allow localhost origins
+    if (process.env.NODE_ENV === 'production' && origin.includes('localhost')) {
+      console.error('❌ CORS blocked localhost origin in production:', origin);
+      return callback(new Error('Localhost origins not allowed in production'), false);
+    }
     
     const allowedOrigins = [
       'http://localhost:3001',
@@ -47,7 +67,11 @@ app.use(cors({
       callback(null, true);
     } else {
       console.log('⚠️ CORS blocked origin:', origin);
-      callback(null, true); // Allow all origins for now to debug
+      if (process.env.NODE_ENV === 'production') {
+        callback(new Error('Origin not allowed in production'), false);
+      } else {
+        callback(null, true); // Allow all origins in development for debugging
+      }
     }
   },
   credentials: true,
