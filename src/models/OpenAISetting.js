@@ -22,6 +22,9 @@ class OpenAISetting {
       CREATE TABLE IF NOT EXISTS openai_settings (
         id SERIAL PRIMARY KEY,
         api_key_encrypted TEXT NOT NULL,
+        max_tokens INTEGER DEFAULT 1000,
+        model VARCHAR(50) DEFAULT 'gpt-3.5-turbo',
+        temperature DECIMAL(3,2) DEFAULT 0.7,
         is_active BOOLEAN DEFAULT true,
         created_by INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -32,9 +35,35 @@ class OpenAISetting {
     try {
       await pool.query(query);
       console.log('✅ OpenAI settings table created/verified');
+      
+      // Add missing columns if they don't exist
+      await this.addMissingColumns();
     } catch (error) {
       console.error('❌ Error creating OpenAI settings table:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Add missing columns to existing table
+   */
+  static async addMissingColumns() {
+    const columns = [
+      { name: 'max_tokens', type: 'INTEGER DEFAULT 1000' },
+      { name: 'model', type: 'VARCHAR(50) DEFAULT \'gpt-3.5-turbo\'' },
+      { name: 'temperature', type: 'DECIMAL(3,2) DEFAULT 0.7' }
+    ];
+
+    for (const column of columns) {
+      try {
+        await pool.query(`
+          ALTER TABLE openai_settings 
+          ADD COLUMN IF NOT EXISTS ${column.name} ${column.type}
+        `);
+        console.log(`✅ Added column ${column.name} to openai_settings table`);
+      } catch (error) {
+        console.log(`⚠️ Column ${column.name} might already exist:`, error.message);
+      }
     }
   }
 
@@ -90,7 +119,7 @@ class OpenAISetting {
    */
   static async saveSettings(settings) {
     try {
-      const { apiKey, createdBy } = settings;
+      const { apiKey, maxTokens, model, temperature, createdBy } = settings;
       
       if (!apiKey) {
         throw new Error('API key is required');
@@ -103,15 +132,18 @@ class OpenAISetting {
       const encryptedJson = JSON.stringify(encryptedData);
       
       const query = `
-        INSERT INTO openai_settings (api_key_encrypted, created_by)
-        VALUES ($1, $2)
+        INSERT INTO openai_settings (api_key_encrypted, max_tokens, model, temperature, created_by)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (id) DO UPDATE SET
           api_key_encrypted = EXCLUDED.api_key_encrypted,
+          max_tokens = EXCLUDED.max_tokens,
+          model = EXCLUDED.model,
+          temperature = EXCLUDED.temperature,
           updated_at = CURRENT_TIMESTAMP
-        RETURNING id, is_active, created_at, updated_at;
+        RETURNING id, max_tokens, model, temperature, is_active, created_at, updated_at;
       `;
       
-      const values = [encryptedJson, createdBy];
+      const values = [encryptedJson, maxTokens || 1000, model || 'gpt-3.5-turbo', temperature || 0.7, createdBy];
       const result = await pool.query(query, values);
       
       console.log('✅ OpenAI settings saved successfully');
@@ -128,7 +160,7 @@ class OpenAISetting {
   static async getSettings() {
     try {
       const query = `
-        SELECT id, api_key_encrypted, is_active, created_at, updated_at
+        SELECT id, api_key_encrypted, max_tokens, model, temperature, is_active, created_at, updated_at
         FROM openai_settings
         WHERE is_active = true
         ORDER BY created_at DESC
@@ -150,6 +182,9 @@ class OpenAISetting {
       return {
         id: settings.id,
         apiKey: decryptedApiKey,
+        maxTokens: settings.max_tokens,
+        model: settings.model,
+        temperature: settings.temperature,
         isActive: settings.is_active,
         createdAt: settings.created_at,
         updatedAt: settings.updated_at

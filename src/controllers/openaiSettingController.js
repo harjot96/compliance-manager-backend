@@ -6,11 +6,14 @@ const Joi = require('joi');
  */
 const saveOpenAISettings = async (req, res, next) => {
   try {
-    const { apiKey } = req.body;
+    const { apiKey, maxTokens, model, temperature } = req.body;
     
     // Validation schema
     const schema = Joi.object({
-      apiKey: Joi.string().required().pattern(/^sk-/).message('API key must start with sk-')
+      apiKey: Joi.string().required().pattern(/^sk-/).message('API key must start with sk-'),
+      maxTokens: Joi.number().integer().min(1).max(4000).optional(),
+      model: Joi.string().valid('gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini').optional(),
+      temperature: Joi.number().min(0).max(2).optional()
     });
     
     const { error, value } = schema.validate(req.body);
@@ -35,7 +38,10 @@ const saveOpenAISettings = async (req, res, next) => {
     // Save settings
     const settings = await OpenAISetting.saveSettings({
       apiKey,
-      createdBy: req.user?.id || 1 // Default to admin user
+      maxTokens: maxTokens || 1000,
+      model: model || 'gpt-3.5-turbo',
+      temperature: temperature || 0.7,
+      createdBy: req.company?.id || 1 // Use company ID from auth middleware
     });
     
     res.json({
@@ -43,6 +49,9 @@ const saveOpenAISettings = async (req, res, next) => {
       message: 'OpenAI settings saved successfully',
       data: {
         id: settings.id,
+        maxTokens: settings.max_tokens,
+        model: settings.model,
+        temperature: settings.temperature,
         isActive: settings.is_active,
         createdAt: settings.created_at,
         updatedAt: settings.updated_at
@@ -78,6 +87,9 @@ const getOpenAISettings = async (req, res, next) => {
       message: 'OpenAI settings retrieved successfully',
       data: {
         id: settings.id,
+        maxTokens: settings.maxTokens,
+        model: settings.model,
+        temperature: settings.temperature,
         isActive: settings.isActive,
         createdAt: settings.createdAt,
         updatedAt: settings.updatedAt
