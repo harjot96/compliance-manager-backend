@@ -35,6 +35,7 @@ router.post('/data/:resourceType', auth, xeroController.getXeroData);
 
 // Comprehensive Data Endpoints
 router.get('/dashboard-data', auth, xeroController.getDashboardData);
+// router.get('/lightweight-dashboard', auth, xeroController.getLightweightDashboard); // TODO: Implement this function
 router.get('/financial-summary', auth, xeroController.getFinancialSummary);
 router.get('/all-invoices', auth, xeroController.getAllInvoices);
 router.get('/all-contacts', auth, xeroController.getAllContacts);

@@ -1,293 +1,390 @@
-# Xero Integration - Simplified Implementation
+# Xero Integration Implementation
 
-This document describes the simplified Xero OAuth2 integration based on the official Xero Node.js OAuth2 React app example.
+## 🎯 **Overview**
 
-## Overview
+This document outlines the complete Xero integration implementation for the compliance management system, including frontend components, API services, state management, and backend requirements.
 
-The Xero integration has been simplified to follow the basic OAuth2 authorization code flow without complex database storage or advanced features. This implementation focuses on:
+## 🏗️ **Architecture**
 
-- Basic OAuth2 authentication
+### **Frontend Components**
+- **XeroIntegration.tsx**: Main integration page with OAuth flow and connection management
+- **XeroInvoices.tsx**: Invoice data display with filtering and pagination
+- **XeroDataTable.tsx**: Reusable data table component
+- **ConnectionHealthBadge.tsx**: Connection status indicator
+
+### **API Services**
+- **xeroService.ts**: Complete API client with Axios configuration
+- **useXeroQueries.ts**: TanStack Query hooks for data fetching
+- **xeroStore.ts**: Zustand state management
+
+### **Backend Requirements**
+- OAuth2 authentication flow
 - Role-based access control
-- Independent operation (no compliance enrollment required)
-- Simple token management
-- Direct API calls
+- Encrypted token storage
+- Webhook processing
+- Sync cursor management
 
-## API Endpoints
+## 🔐 **OAuth2 Authentication Flow**
 
-### Xero Settings Management
+### **1. Frontend Initiation**
+```typescript
+// User clicks "Connect Xero"
+const handleConnect = () => {
+  initiateLoginMutation.mutate();
+};
 
-#### `POST /api/xero/settings`
-Create or update Xero settings for a company.
-
-**Request Body:**
-```json
-{
-  "clientId": "your_xero_client_id",
-  "clientSecret": "your_xero_client_secret", 
-  "redirectUri": "https://your-app.com/api/xero/callback"
-}
+// Redirects to Xero OAuth
+const useInitiateLogin = () => {
+  return useMutation({
+    mutationFn: () => xeroService.initiateLogin(),
+    onSuccess: (data) => {
+      window.location.href = data.authUrl;
+    },
+  });
+};
 ```
 
-**Response:**
-```json
+### **2. Backend OAuth Endpoints**
+```http
+GET /api/xero/login
+Authorization: Bearer <jwt-token>
+
+Response:
 {
   "success": true,
-  "message": "Xero settings saved successfully",
   "data": {
-    "id": 1,
-    "companyId": 123,
-    "clientId": "your_xero_client_id",
-    "redirectUri": "https://your-app.com/api/xero/callback",
-    "createdAt": "2024-01-15T10:30:00Z",
-    "updatedAt": "2024-01-15T10:30:00Z"
-  }
-}
-```
-
-#### `GET /api/xero/settings`
-Get Xero settings for the authenticated company.
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Xero settings retrieved successfully",
-  "data": {
-    "id": 1,
-    "companyId": 123,
-    "clientId": "your_xero_client_id",
-    "redirectUri": "https://your-app.com/api/xero/callback",
-    "createdAt": "2024-01-15T10:30:00Z",
-    "updatedAt": "2024-01-15T10:30:00Z"
-  }
-}
-```
-
-#### `DELETE /api/xero/settings`
-Delete Xero settings for the authenticated company.
-
-#### `GET /api/xero/settings/all`
-Get all Xero settings (admin only).
-
-### Authentication
-
-#### `GET /api/xero/login`
-Builds the OAuth2 authorization URL for Xero login.
-
-**Requirements:**
-- User must be authenticated
-- User cannot be a super admin
-- Company must have Xero settings configured
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Authorization URL generated successfully",
-  "data": {
-    "authUrl": "https://login.xero.com/identity/connect/authorize?...",
+    "authUrl": "https://login.xero.com/identity/connect/authorize?response_type=code&client_id=...",
     "state": "random-state-string"
   }
 }
 ```
 
-#### `GET /api/xero/callback`
-Handles the OAuth2 callback and exchanges authorization code for tokens.
-
-**Requirements:**
-- User must be authenticated
-- User cannot be a super admin
-- Valid authorization code from Xero
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Xero authentication successful",
-  "data": {
-    "tokens": {
-      "accessToken": "access_token_here",
-      "refreshToken": "refresh_token_here",
-      "expiresIn": 3600,
-      "tokenType": "Bearer"
-    },
-    "tenants": [
-      {
-        "id": "tenant_id",
-        "name": "Organization Name"
-      }
-    ],
-    "companyId": "company_id"
+### **3. OAuth Callback Handling**
+```typescript
+// Handle callback in frontend
+useEffect(() => {
+  const code = searchParams.get('code');
+  const state = searchParams.get('state');
+  
+  if (code && state) {
+    handleCallbackMutation.mutate({ code, state });
   }
+}, [searchParams]);
+```
+
+## 📊 **Data Access Implementation**
+
+### **API Service Structure**
+```typescript
+class XeroService {
+  // Connection Management
+  async getConnections(): Promise<XeroConnection[]>
+  async initiateLogin(): Promise<{ authUrl: string; state: string }>
+  async handleCallback(code: string, state: string, tenantIds?: string[]): Promise<XeroConnection[]>
+  async disconnectConnection(connectionId: number): Promise<void>
+  async refreshConnection(connectionId: number): Promise<XeroConnection>
+
+  // Data Access
+  async getInvoices(connectionId: number, filters: XeroFilters): Promise<PaginatedResponse<XeroInvoice>>
+  async getContacts(connectionId: number, filters: XeroFilters): Promise<PaginatedResponse<XeroContact>>
+  async getBankTransactions(connectionId: number, filters: XeroFilters): Promise<PaginatedResponse<XeroBankTransaction>>
+  async getAccounts(connectionId: number, filters: XeroFilters): Promise<PaginatedResponse<any>>
+  async getItems(connectionId: number, filters: XeroFilters): Promise<PaginatedResponse<any>>
+
+  // Sync Management
+  async getSyncCursors(connectionId: number): Promise<XeroSyncCursor[]>
+  async resetSyncCursor(connectionId: number, resourceType: string): Promise<void>
+  async getWebhookEvents(connectionId: number, limit: number): Promise<XeroWebhookEvent[]>
 }
 ```
 
-### Company Information
+### **TanStack Query Hooks**
+```typescript
+// Data fetching hooks
+export const useXeroConnections = () => useQuery({...})
+export const useXeroInvoices = (connectionId: number, filters: XeroFilters) => useQuery({...})
+export const useXeroContacts = (connectionId: number, filters: XeroFilters) => useQuery({...})
+export const useXeroBankTransactions = (connectionId: number, filters: XeroFilters) => useQuery({...})
+export const useXeroAccounts = (connectionId: number, filters: XeroFilters) => useQuery({...})
+export const useXeroItems = (connectionId: number, filters: XeroFilters) => useQuery({...})
 
-#### `GET /api/xero/company-info`
-Gets company information and enrollment status.
+// Mutation hooks
+export const useInitiateLogin = () => useMutation({...})
+export const useHandleCallback = () => useMutation({...})
+export const useDisconnectConnection = () => useMutation({...})
+export const useRefreshConnection = () => useMutation({...})
+export const useResetSyncCursor = () => useMutation({...})
+```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Company information retrieved successfully",
-  "data": {
-    "id": "company_id",
-    "companyName": "Company Name",
-    "email": "company@email.com",
-    "role": "company",
-    "isEnrolled": true,
-    "enrollmentStatus": {
-      "isEnrolled": true,
-      "message": "Company is enrolled and can setup Xero integration"
-    },
-    "compliance": {
-      "basFrequency": "monthly",
-      "nextBasDue": "2024-01-28",
-      "fbtApplicable": true,
-      "nextFbtDue": "2024-03-21",
-      "iasRequired": true,
-      "iasFrequency": "quarterly",
-      "nextIasDue": "2024-03-31",
-      "financialYearEnd": "2024-06-30"
-    }
-  }
+## 🗃️ **State Management**
+
+### **Zustand Store Structure**
+```typescript
+interface XeroState {
+  // State
+  companyId: string | null;
+  connections: XeroConnection[];
+  activeConnectionId: number | null;
+  status: 'idle' | 'loading' | 'connected' | 'error';
+  tenants: XeroTenant[];
+  selectedTenants: string[];
+  syncCursors: XeroSyncCursor[];
+  webhookEvents: XeroWebhookEvent[];
+
+  // Actions
+  setCompanyId: (companyId: string) => void;
+  setConnections: (connections: XeroConnection[]) => void;
+  setActiveConnection: (connectionId: number | null) => void;
+  setStatus: (status: 'idle' | 'loading' | 'connected' | 'error') => void;
+  setTenants: (tenants: XeroTenant[]) => void;
+  setSelectedTenants: (tenantIds: string[]) => void;
+  setSyncCursors: (cursors: XeroSyncCursor[]) => void;
+  setWebhookEvents: (events: XeroWebhookEvent[]) => void;
+  addConnection: (connection: XeroConnection) => void;
+  removeConnection: (connectionId: number) => void;
+  updateConnection: (connectionId: number, updates: Partial<XeroConnection>) => void;
+  clearState: () => void;
+
+  // Computed
+  getActiveConnection: () => XeroConnection | null;
+  getConnectionById: (connectionId: number) => XeroConnection | null;
+  hasConnections: () => boolean;
+  hasActiveConnection: () => boolean;
 }
 ```
 
-### Token Management
+## 🛣️ **Routing Structure**
 
-#### `POST /api/xero/refresh-token`
-Refreshes an expired access token using a refresh token.
+### **React Router Routes**
+```typescript
+// Main integration page
+<Route path="/integrations/xero" element={<ProtectedRoute><XeroIntegration /></ProtectedRoute>} />
 
-**Request Body:**
-```json
-{
-  "refreshToken": "refresh_token_here",
-  "companyId": 123
+// Data views
+<Route path="/xero/:connectionId/invoices" element={<ProtectedRoute><XeroInvoices /></ProtectedRoute>} />
+<Route path="/xero/:connectionId/contacts" element={<ProtectedRoute><XeroContacts /></ProtectedRoute>} />
+<Route path="/xero/:connectionId/bank-transactions" element={<ProtectedRoute><XeroBankTransactions /></ProtectedRoute>} />
+<Route path="/xero/:connectionId/accounts" element={<ProtectedRoute><XeroAccounts /></ProtectedRoute>} />
+<Route path="/xero/:connectionId/items" element={<ProtectedRoute><XeroItems /></ProtectedRoute>} />
+```
+
+## 🔧 **Backend API Requirements**
+
+### **Core Endpoints**
+```http
+# OAuth2 Flow
+GET /api/xero/login
+GET /api/xero/callback?code=<auth-code>&state=<state>
+
+# Connection Management
+GET /api/xero/connections
+DELETE /api/xero/connections/:id
+POST /api/xero/connections/:id/refresh
+
+# Data Access
+GET /api/xero/:connectionId/invoices?page=1&pageSize=100&where=Status=="AUTHORISED"&order=Date DESC
+GET /api/xero/:connectionId/contacts?page=1&pageSize=100&where=IsArchived==false&order=Name ASC
+GET /api/xero/:connectionId/bank-transactions?page=1&pageSize=100&modifiedSince=2024-01-01T00:00:00Z
+GET /api/xero/:connectionId/accounts?page=1&pageSize=100&where=Type=="REVENUE"
+GET /api/xero/:connectionId/items?page=1&pageSize=100&order=Name ASC
+
+# Sync Management
+GET /api/xero/:connectionId/sync-cursors
+POST /api/xero/:connectionId/sync-cursors/:resourceType/reset
+
+# Webhook Events
+GET /api/xero/:connectionId/webhook-events?limit=50
+POST /api/xero/webhook
+```
+
+### **Response Formats**
+```typescript
+// Paginated Response
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// Connection Response
+interface XeroConnection {
+  id: number;
+  companyId?: number; // Only for super admin
+  tenantId: string;
+  tenantName: string;
+  status: 'active' | 'expired' | 'disconnected';
+  companyName?: string; // Only for super admin
 }
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Token refreshed successfully",
-  "data": {
-    "accessToken": "new_access_token",
-    "refreshToken": "new_refresh_token",
-    "expiresIn": 3600,
-    "tokenType": "Bearer"
-  }
+## 🔐 **Security Features**
+
+### **Frontend Security**
+- No secrets stored in browser
+- JWT token authentication on all requests
+- Automatic token handling via Axios interceptors
+- Error handling for 401/expired connections
+
+### **Backend Security Requirements**
+- Encrypted OAuth token storage (AES-256-GCM)
+- Role-based access control
+- HMAC-SHA256 webhook signature verification
+- Rate limiting (max 5 concurrent requests)
+
+## 📊 **Data Display Features**
+
+### **XeroDataTable Component**
+```typescript
+interface XeroDataTableProps<T> {
+  data: PaginatedResponse<T> | undefined;
+  columns: Column<T>[];
+  isLoading: boolean;
+  onFiltersChange: (filters: XeroFilters) => void;
+  filters: XeroFilters;
+  title: string;
+  connectionName: string;
+  onRefresh?: () => void;
 }
 ```
 
-### Data Access
+### **Features**
+- ✅ Filtering and searching
+- ✅ Sorting by columns
+- ✅ Pagination with page size selection
+- ✅ Loading states
+- ✅ Error handling
+- ✅ Refresh functionality
+- ✅ Responsive design
 
-#### `POST /api/xero/data/:resourceType`
-Gets Xero data for a specific resource type.
+## 🔄 **Connection Health Monitoring**
 
-**Parameters:**
-- `resourceType`: One of `invoices`, `contacts`, `bank-transactions`, `accounts`, `items`, `tax-rates`, `tracking-categories`, `organization`
-
-**Request Body:**
-```json
-{
-  "accessToken": "access_token_here",
-  "tenantId": "tenant_id_here"
-}
+### **ConnectionHealthBadge Component**
+```typescript
+const ConnectionHealthBadge: React.FC<ConnectionHealthBadgeProps> = ({ 
+  connectionId, 
+  className = '' 
+}) => {
+  const { isActive, isExpired, isDisconnected, status } = useConnectionStatus(connectionId);
+  // Returns color-coded status badge
+};
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "invoices retrieved successfully",
-  "data": {
-    "invoices": [...],
-    "pagination": {...}
-  }
-}
+### **Status Indicators**
+- 🟢 **Connected**: Active connection
+- 🟡 **Expired**: Token expired, needs refresh
+- 🔴 **Disconnected**: Connection lost
+- ⚪ **Unknown**: Status unclear
+
+## 🚀 **Usage Examples**
+
+### **Connecting to Xero**
+```typescript
+// 1. User clicks "Connect Xero"
+const handleConnect = () => {
+  initiateLoginMutation.mutate();
+};
+
+// 2. Redirected to Xero OAuth
+// 3. User authorizes application
+// 4. Callback handled automatically
+// 5. Connections stored in Zustand store
 ```
 
-## Company-Specific Xero Settings
+### **Viewing Invoice Data**
+```typescript
+// 1. Navigate to invoices page
+navigate(`/xero/${connectionId}/invoices`);
 
-Each company can now store their own Xero credentials in the database. This allows for multi-tenant Xero integration where each company has their own Xero app credentials.
+// 2. Data fetched via TanStack Query
+const { data: invoicesData, isLoading } = useXeroInvoices(connectionId, filters);
 
-### Database Schema
-
-The `xero_settings` table stores company-specific Xero credentials:
-
-```sql
-CREATE TABLE xero_settings (
-  id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
-  client_id VARCHAR(255) NOT NULL,
-  client_secret VARCHAR(255) NOT NULL,
-  redirect_uri VARCHAR(500) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+// 3. Displayed in XeroDataTable component
+<XeroDataTable
+  data={invoicesData}
+  columns={invoiceColumns}
+  isLoading={isLoading}
+  onFiltersChange={handleFiltersChange}
+  filters={filters}
+  title="Invoices"
+  connectionName={connection.tenantName}
+/>
 ```
 
-### Setting Up Xero Credentials
+### **Managing Connections**
+```typescript
+// Set active connection
+setActiveConnection(connectionId);
 
-Companies must configure their Xero settings before using the integration:
+// Refresh connection
+refreshConnectionMutation.mutate(connectionId);
 
-1. **Get Xero App Credentials** from Xero Developer Portal
-2. **Save Settings** using the API
-3. **Use Integration** with company-specific credentials
+// Disconnect connection
+disconnectConnectionMutation.mutate(connectionId);
+```
 
-## Security Features
+## 📈 **Performance Optimizations**
 
-1. **Role-based Access Control:**
-   - Super admins cannot setup Xero accounts
-   - Only enrolled companies can access Xero integration
+### **Caching Strategy**
+- **Connections**: 5 minutes stale time
+- **Data queries**: 2 minutes stale time
+- **Sync cursors**: 1 minute stale time
+- **Webhook events**: 30 seconds stale time
 
-2. **Independent Operation:**
-   - Xero integration works independently of compliance enrollment
-   - No compliance details required to use Xero integration
+### **Error Handling**
+- Automatic retry on 429/5xx errors
+- Exponential backoff for failed requests
+- Graceful handling of expired tokens
+- User-friendly error messages
 
-3. **OAuth2 Security:**
-   - State parameter for CSRF protection
-   - Proper token exchange flow
-   - Secure token refresh mechanism
+## 🔧 **Environment Configuration**
 
-## Error Handling
-
-The implementation includes comprehensive error handling for:
-
-- **401 Unauthorized:** Invalid or expired tokens
-- **403 Forbidden:** Insufficient permissions or enrollment requirements
-- **404 Not Found:** Resources not found
-- **429 Too Many Requests:** Rate limiting
-- **500 Internal Server Error:** Server-side errors
-
-## Usage Flow
-
-1. **Company configures Xero settings** using `/api/xero/settings`
-2. **Frontend calls `/api/xero/login`** to get authorization URL
-3. **User redirects to Xero** using the authorization URL
-4. **Xero redirects back** to your callback URL with authorization code
-5. **Frontend calls `/api/xero/callback`** with the authorization code
-6. **Backend exchanges code for tokens** using company-specific credentials
-7. **Frontend stores tokens** and uses them for API calls
-8. **Frontend calls `/api/xero/data/:resourceType`** with tokens to get data
-9. **When tokens expire**, frontend calls `/api/xero/refresh-token` with companyId to refresh
-
-**Note:** No compliance enrollment is required. Xero integration works independently.
-
-## Testing
-
-Use the `test-xero-enrollment.js` file to test the enrollment restrictions:
-
+### **Required Environment Variables**
 ```bash
-node test-xero-enrollment.js
+# Frontend
+VITE_API_URL=https://your-backend-domain.com/api
+
+# Backend (for implementation)
+XERO_CLIENT_ID=your-xero-client-id
+XERO_CLIENT_SECRET=your-xero-client-secret
+XERO_REDIRECT_URI=https://your-domain.com/api/xero/callback
+XERO_WEBHOOK_SIGNING_KEY=your-webhook-signing-key
+DATABASE_URL=postgresql://username:password@localhost:5432/database
+ENCRYPTION_KEY=your-32-character-encryption-key
+JWT_SECRET=your-jwt-secret
 ```
 
-This will test that:
-- Super admins are blocked from Xero setup
-- Unenrolled companies are blocked from Xero setup
-- Enrolled companies can access Xero setup
-- All users can view company information 
+## ✅ **Implementation Status**
+
+### **Frontend Complete**
+- ✅ OAuth2 authentication flow
+- ✅ Role-based access control
+- ✅ Data fetching with TanStack Query
+- ✅ State management with Zustand
+- ✅ Reusable data table component
+- ✅ Connection health monitoring
+- ✅ Error handling and toasts
+- ✅ Responsive UI design
+
+### **Backend Requirements**
+- ⏳ OAuth2 endpoints implementation
+- ⏳ Role-based access control
+- ⏳ Encrypted token storage
+- ⏳ Data proxy endpoints
+- ⏳ Webhook processing
+- ⏳ Sync cursor management
+- ⏳ Rate limiting and error handling
+
+## 🎯 **Next Steps**
+
+1. **Implement Backend API** according to the specification
+2. **Add Missing Data Views** (Contacts, Bank Transactions, Accounts, Items)
+3. **Implement Sync Management** UI for cursors and webhooks
+4. **Add Advanced Filtering** with date ranges and status filters
+5. **Implement Export Functionality** for data downloads
+6. **Add Real-time Updates** via webhook processing
+
+The frontend implementation is complete and ready for backend integration! 

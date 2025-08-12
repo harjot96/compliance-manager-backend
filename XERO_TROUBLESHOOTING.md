@@ -1,236 +1,309 @@
-# Xero Authorization Troubleshooting Guide
+# Xero Integration Troubleshooting Guide
 
-## Common Issues and Solutions
+## 🚨 Common Issues and Solutions
 
-### 1. "Failed to start Xero authorization" Error
+### 1. **"Cannot connect to backend server" Error**
 
 **Symptoms:**
-- Frontend shows "Failed to start Xero authorization"
-- OAuth2.0 flow doesn't open
-- No redirect to Xero login page
+- Network error messages
+- 404 or 500 errors when trying to connect
+- Console shows "Failed to fetch" errors
 
-**Possible Causes and Solutions:**
+**Causes:**
+- Backend server is not running
+- Wrong API URL configuration
+- CORS issues
+- Network connectivity problems
 
-#### A. Missing Xero Settings
-**Error Code:** `XERO_SETTINGS_MISSING`
-
-**Solution:**
-1. Configure Xero settings first:
-   ```javascript
-   // Frontend should call this endpoint
-   POST /api/xero/settings
-   {
-     "clientId": "your-xero-client-id",
-     "clientSecret": "your-xero-client-secret", 
-     "redirectUri": "https://your-domain.com/api/xero/callback"
-   }
-   ```
-
-2. Check if settings exist:
-   ```javascript
-   GET /api/xero/settings
-   ```
-
-#### B. Authentication Issues
-**Error Code:** `401 Unauthorized`
-
-**Solution:**
-1. Ensure user is logged in and has valid JWT token
-2. Include Authorization header:
-   ```javascript
-   headers: {
-     'Authorization': 'Bearer your-jwt-token'
-   }
-   ```
-
-#### C. Super Admin Restriction
-**Error Code:** `SUPER_ADMIN_RESTRICTED`
-
-**Solution:**
-- Only regular companies can setup Xero integration
-- Super admins cannot connect Xero accounts
-- Use a regular company account instead
-
-#### D. Database Issues
-**Error Code:** `500 Internal Server Error`
-
-**Solution:**
-1. Ensure `xero_oauth_states` table exists:
+**Solutions:**
+1. **Check Backend Status:**
    ```bash
-   npm run migrate
+   # Check if backend is running on localhost:3333
+   curl http://localhost:3333/api/health
    ```
 
-2. Check database connection
+2. **Verify API URL:**
+   - Check browser console for the actual API URL being used
+   - Ensure `VITE_API_URL` is set correctly in your environment
+   - Default URL: `http://localhost:3333/api`
 
-### 2. Frontend Implementation Guide
+3. **Test API Endpoints:**
+   ```bash
+   # Test Xero connections endpoint
+   curl -H "Authorization: Bearer YOUR_TOKEN" \
+        http://localhost:3333/api/xero/connections
+   ```
 
-#### Step-by-Step Flow:
+### 2. **"Xero connection has expired" Error**
 
+**Symptoms:**
+- 401 Unauthorized errors
+- "Connection expired" toast messages
+- OAuth tokens not working
+
+**Causes:**
+- OAuth tokens have expired
+- Backend token storage issues
+- Xero API rate limits
+
+**Solutions:**
+1. **Reconnect to Xero:**
+   - Click "Connect Xero" button
+   - Complete OAuth flow again
+   - Check if new tokens are stored
+
+2. **Check Token Storage:**
+   - Verify backend is storing tokens securely
+   - Check token expiration times
+   - Ensure proper token refresh logic
+
+### 3. **"Access denied" or "Forbidden" Errors**
+
+**Symptoms:**
+- 403 Forbidden responses
+- "Access denied" messages
+- Cannot view Xero data
+
+**Causes:**
+- Insufficient Xero permissions
+- Role-based access control issues
+- Missing company association
+
+**Solutions:**
+1. **Check User Permissions:**
+   - Verify user has proper role (admin/company user)
+   - Check company association in database
+   - Ensure Xero app has required scopes
+
+2. **Verify Company Setup:**
+   - Check if company is properly configured
+   - Verify company ID is set correctly
+   - Check user-company relationship
+
+### 4. **OAuth Flow Not Working**
+
+**Symptoms:**
+- Clicking "Connect Xero" does nothing
+- OAuth callback not handled
+- Redirect loops
+
+**Causes:**
+- Missing OAuth configuration
+- Incorrect redirect URIs
+- Backend OAuth endpoints not implemented
+
+**Solutions:**
+1. **Check OAuth Configuration:**
+   ```javascript
+   // Test OAuth initiation
+   const response = await fetch('http://localhost:3333/api/xero/login', {
+     headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+   });
+   console.log('OAuth response:', response);
+   ```
+
+2. **Verify Redirect URIs:**
+   - Check Xero app settings
+   - Ensure callback URL matches backend: `http://localhost:3333/api/xero/callback`
+   - Test OAuth flow manually
+
+### 5. **Data Not Loading**
+
+**Symptoms:**
+- Empty data tables
+- Loading spinners that never resolve
+- "No data found" messages
+
+**Causes:**
+- No Xero connections established
+- API endpoints returning empty data
+- Filter issues
+
+**Solutions:**
+1. **Check Connections:**
+   ```javascript
+   // Test connections endpoint
+   const connections = await xeroService.getConnections();
+   console.log('Connections:', connections);
+   ```
+
+2. **Verify Data Endpoints:**
+   ```javascript
+   // Test invoices endpoint
+   const invoices = await xeroService.getInvoices(connectionId, {});
+   console.log('Invoices:', invoices);
+   ```
+
+3. **Check Filters:**
+   - Ensure filters are not too restrictive
+   - Test with empty filters first
+   - Check date ranges
+
+## 🔧 Debugging Steps
+
+### Step 1: Check Environment
 ```javascript
-// 1. User Login
-const loginResponse = await axios.post('/api/companies/login', {
-  email: 'user@example.com',
-  password: 'password'
-});
-const token = loginResponse.data.data.token;
-
-// 2. Check Xero Settings
-try {
-  const settingsResponse = await axios.get('/api/xero/settings', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  // Settings exist, proceed to authorization
-} catch (error) {
-  if (error.response?.data?.errorCode === 'XERO_SETTINGS_MISSING') {
-    // Show settings configuration form
-    showXeroSettingsForm();
-  }
-}
-
-// 3. Configure Xero Settings (if needed)
-const configResponse = await axios.post('/api/xero/settings', {
-  clientId: 'your-client-id',
-  clientSecret: 'your-client-secret',
-  redirectUri: 'https://your-domain.com/api/xero/callback'
-}, {
-  headers: { 'Authorization': `Bearer ${token}` }
-});
-
-// 4. Start Xero Authorization
-const authResponse = await axios.get('/api/xero/login', {
-  headers: { 'Authorization': `Bearer ${token}` }
-});
-
-// 5. Redirect to Xero
-if (authResponse.data.success) {
-  const authUrl = authResponse.data.data.authUrl;
-  // Option 1: Redirect in same window
-  window.location.href = authUrl;
-  
-  // Option 2: Open in new window
-  window.open(authUrl, '_blank', 'width=800,height=600');
-  
-  // Option 3: Use popup
-  const popup = window.open(authUrl, 'xero-auth', 'width=800,height=600');
-}
+// Run in browser console
+import { logEnvironmentInfo } from './src/utils/envChecker';
+logEnvironmentInfo();
 ```
 
-### 3. Error Handling
-
-#### Frontend Error Handling:
-
+### Step 2: Test API Connectivity
 ```javascript
-try {
-  const response = await axios.get('/api/xero/login', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  
-  if (response.data.success) {
-    // Handle success
-    redirectToXero(response.data.data.authUrl);
-  }
-} catch (error) {
-  const errorData = error.response?.data;
-  
-  switch (errorData?.errorCode) {
-    case 'XERO_SETTINGS_MISSING':
-      showXeroSettingsForm();
-      break;
-      
-    case 'SUPER_ADMIN_RESTRICTED':
-      showError('Only regular companies can connect Xero accounts');
-      break;
-      
-    case '401':
-      redirectToLogin();
-      break;
-      
-    default:
-      showError(errorData?.message || 'Failed to start Xero authorization');
-  }
-}
+// Test basic API connectivity
+fetch('http://localhost:3333/api/health')
+  .then(response => console.log('Backend status:', response.status))
+  .catch(error => console.error('Backend error:', error));
 ```
 
-### 4. Testing the Flow
+### Step 3: Check Authentication
+```javascript
+// Verify token is present
+const token = localStorage.getItem('token');
+console.log('Token present:', !!token);
+console.log('Token length:', token?.length);
+```
 
-#### Backend Testing:
+### Step 4: Test Xero Service
+```javascript
+// Test Xero service directly
+import xeroService from './src/api/xeroService';
+
+// Test connections
+xeroService.getConnections()
+  .then(connections => console.log('Connections:', connections))
+  .catch(error => console.error('Connections error:', error));
+
+// Test login initiation
+xeroService.initiateLogin()
+  .then(data => console.log('Login data:', data))
+  .catch(error => console.error('Login error:', error));
+```
+
+### Step 5: Check Network Tab
+1. Open browser DevTools
+2. Go to Network tab
+3. Try to connect to Xero
+4. Look for failed requests
+5. Check request/response details
+
+## 🛠️ Development Setup
+
+### Backend Requirements
 ```bash
-# Test the complete flow
-node debug-xero-auth.js
+# Required environment variables
+XERO_CLIENT_ID=your-xero-client-id
+XERO_CLIENT_SECRET=your-xero-client-secret
+XERO_REDIRECT_URI=http://localhost:3333/api/xero/callback
+DATABASE_URL=postgresql://username:password@localhost:5432/database
+JWT_SECRET=your-jwt-secret
 ```
 
-#### Frontend Testing:
-1. Open browser developer tools
-2. Check Network tab for API calls
-3. Check Console for errors
-4. Verify JWT token is valid
-5. Test with real Xero credentials
-
-### 5. Common Frontend Mistakes
-
-1. **Missing Authorization Header**
-   ```javascript
-   // ❌ Wrong
-   axios.get('/api/xero/login')
-   
-   // ✅ Correct
-   axios.get('/api/xero/login', {
-     headers: { 'Authorization': `Bearer ${token}` }
-   })
-   ```
-
-2. **Not Handling Errors**
-   ```javascript
-   // ❌ Wrong
-   const response = await axios.get('/api/xero/login');
-   
-   // ✅ Correct
-   try {
-     const response = await axios.get('/api/xero/login');
-   } catch (error) {
-     handleError(error);
-   }
-   ```
-
-3. **Wrong Redirect URI**
-   ```javascript
-   // ❌ Wrong - localhost won't work in production
-   redirectUri: 'http://localhost:3000/api/xero/callback'
-   
-   // ✅ Correct
-   redirectUri: 'https://your-production-domain.com/api/xero/callback'
-   ```
-
-### 6. Production Checklist
-
-- [ ] Use HTTPS URLs for redirect URIs
-- [ ] Configure real Xero app credentials
-- [ ] Set up proper CORS headers
-- [ ] Handle all error cases
-- [ ] Test with real Xero account
-- [ ] Monitor server logs for errors
-
-### 7. Debug Commands
-
+### Frontend Environment
 ```bash
-# Check server health
-curl http://localhost:3333/health
-
-# Test Xero callback
-curl -X POST http://localhost:3333/api/xero/callback \
-  -H "Content-Type: application/json" \
-  -d '{"code":"test","state":"test"}'
-
-# Check database tables
-npm run migrate
+# Create .env file
+VITE_API_URL=http://localhost:3333/api
 ```
 
-### 8. Getting Help
+### Testing OAuth Flow
+1. **Start Backend:**
+   ```bash
+   cd backend
+   npm start
+   # Backend should be running on http://localhost:3333
+   ```
+
+2. **Start Frontend:**
+   ```bash
+   cd frontend
+   npm run dev
+   # Frontend should be running on http://localhost:3004 (or available port)
+   ```
+
+3. **Test OAuth:**
+   - Navigate to Xero integration page
+   - Click "Connect Xero"
+   - Complete OAuth flow
+   - Check for successful callback
+
+## 📊 Monitoring and Logs
+
+### Frontend Logs
+```javascript
+// Enable detailed logging
+localStorage.setItem('debug', 'xero:*');
+
+// Check console for:
+// - API requests/responses
+// - OAuth flow steps
+// - Error messages
+// - Environment info
+```
+
+### Backend Logs
+```bash
+# Check backend logs for:
+# - OAuth requests
+# - Token storage
+# - API calls to Xero
+# - Error responses
+```
+
+## 🚀 Quick Fixes
+
+### 1. Reset Everything
+```javascript
+// Clear all stored data
+localStorage.clear();
+sessionStorage.clear();
+// Reload page and try again
+```
+
+### 2. Force Reconnect
+```javascript
+// Clear Xero connections and reconnect
+localStorage.removeItem('xero_connections');
+// Navigate to Xero integration page
+// Click "Connect Xero"
+```
+
+### 3. Check API Status
+```javascript
+// Test if backend is responding
+fetch('http://localhost:3333/api/health')
+  .then(r => r.json())
+  .then(data => console.log('Backend health:', data))
+  .catch(e => console.error('Backend down:', e));
+```
+
+## 📞 Getting Help
 
 If you're still experiencing issues:
 
-1. Check server logs for detailed error messages
-2. Verify all API endpoints are working
-3. Test with the provided debug scripts
-4. Ensure database migrations have run
-5. Check Xero app configuration in Xero Developer portal 
+1. **Check the Debug Panel** in the Xero integration page
+2. **Review browser console** for error messages
+3. **Test API endpoints** manually
+4. **Verify environment configuration**
+5. **Check backend logs** for server-side issues
+
+### Common Error Messages and Solutions
+
+| Error Message | Likely Cause | Solution |
+|---------------|--------------|----------|
+| "Network Error" | Backend down | Check if backend is running on localhost:3333 |
+| "401 Unauthorized" | Token expired | Reconnect to Xero |
+| "403 Forbidden" | Permission issue | Check user role |
+| "404 Not Found" | Wrong API URL | Verify VITE_API_URL is set to http://localhost:3333/api |
+| "500 Server Error" | Backend issue | Check backend logs |
+
+## ✅ Success Checklist
+
+- [ ] Backend server is running on localhost:3333
+- [ ] API URL is configured correctly (http://localhost:3333/api)
+- [ ] User is authenticated with valid token
+- [ ] Company ID is set correctly
+- [ ] OAuth flow completes successfully
+- [ ] Xero connections are established
+- [ ] Data endpoints return results
+- [ ] No console errors
+- [ ] Network requests succeed 
