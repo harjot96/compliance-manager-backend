@@ -1556,12 +1556,9 @@ const getAllReports = async (req, res) => {
     const { reportID } = req.query;
     if (!reportID) return res.status(400).json({ success: false, message: 'Report ID is required' });
 
-    const tenantsResponse = await axios.get('https://api.xero.com/connections', {
-      headers: { Authorization: `Bearer ${settings.access_token}`, 'Content-Type': 'application/json' }
-    });
-    if (!tenantsResponse.data.length) return res.status(404).json({ success: false, message: 'No organizations found' });
-
-    const tenantId = tenantsResponse.data[0].tenantId;
+    // Use the same tenant selection logic as other endpoints
+    let tenantId = await pickTenantIdOrFirst(settings.access_token, req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant);
+    
     const data = await fetchXeroData(settings.access_token, tenantId, `Reports/${reportID}`, {}, companyId);
     res.json({ success: true, message: 'Report retrieved successfully', data });
   } catch (error) {
