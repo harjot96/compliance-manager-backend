@@ -289,11 +289,57 @@ const testOpenAIApiKey = async (req, res, next) => {
   }
 };
 
+/**
+ * Get OpenAI API key temporarily (with security measures)
+ * WARNING: This should only be used for admin purposes
+ */
+const getOpenAIApiKey = async (req, res, next) => {
+  try {
+    // Additional security check - require special permission
+    if (req.company.role !== 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Super Admins only for API key access.'
+      });
+    }
+
+    const settings = await OpenAISetting.getSettings();
+    
+    if (!settings) {
+      return res.status(404).json({
+        success: false,
+        message: 'No OpenAI settings found'
+      });
+    }
+
+    // Return the full API key with security warnings
+    res.json({
+      success: true,
+      message: 'OpenAI API key retrieved (use with caution)',
+      data: {
+        apiKey: settings.apiKey,
+        apiKeyPreview: `sk-...${settings.apiKey.substring(settings.apiKey.length - 4)}`,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutes
+        securityWarning: 'This key should be used immediately and not stored in frontend'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Get OpenAI API Key Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve OpenAI API key',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   saveOpenAISettings,
   getOpenAISettings,
   getAllOpenAISettings,
   updateOpenAISettings,
   deleteOpenAISettings,
-  testOpenAIApiKey
+  testOpenAIApiKey,
+  getOpenAIApiKey
 }; 

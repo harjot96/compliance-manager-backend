@@ -14,4 +14,7 @@ router.delete('/settings/:id', auth, requireSuperAdmin, openaiSettingController.
 // Test OpenAI API key (Super Admin only)
 router.post('/test-api-key', auth, requireSuperAdmin, openaiSettingController.testOpenAIApiKey);
 
+// Get OpenAI API key temporarily (Super Admin only) - USE WITH CAUTION
+router.get('/api-key', auth, requireSuperAdmin, openaiSettingController.getOpenAIApiKey);
+
 module.exports = router; 
