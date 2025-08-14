@@ -295,11 +295,11 @@ const testOpenAIApiKey = async (req, res, next) => {
  */
 const getOpenAIApiKey = async (req, res, next) => {
   try {
-    // Additional security check - require special permission
-    if (req.company.role !== 'superadmin') {
-      return res.status(403).json({
+    // Any authenticated user can access
+    if (!req.company) {
+      return res.status(401).json({
         success: false,
-        message: 'Access denied. Super Admins only for API key access.'
+        message: 'Access denied. Authentication required.'
       });
     }
 
