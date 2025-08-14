@@ -1548,21 +1548,41 @@ const getAllQuotes = async (req, res) => {
 };
 
 const getAllReports = async (req, res) => {
+  const companyId = req.company.id;
   try {
-    const companyId = req.company.id;
     const settings = await XeroSettings.getByCompanyId(companyId);
-    if (!settings || !settings.access_token) return res.status(400).json({ success: false, message: 'Xero not connected. Please connect to Xero first.' });
+    if (!settings) return res.status(404).json({ success: false, message: 'Xero settings not found for this company' });
+    if (!settings.access_token) return res.status(400).json({ success: false, message: 'Xero not connected. Please connect to Xero first.' });
 
     const { reportID } = req.query;
     if (!reportID) return res.status(400).json({ success: false, message: 'Report ID is required' });
 
-    // Use the same tenant selection logic as other endpoints
-    let tenantId = await pickTenantIdOrFirst(settings.access_token, req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant);
+    // Handle tenant ID selection
+    let tenantId = req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant;
+    if (!tenantId) {
+      // Get first available tenant
+      const tenantsResponse = await axios.get('https://api.xero.com/connections', {
+        headers: { Authorization: `Bearer ${settings.access_token}`, 'Content-Type': 'application/json' }
+      });
+      if (!tenantsResponse.data.length) {
+        return res.status(404).json({ success: false, message: 'No Xero organizations found' });
+      }
+      tenantId = tenantsResponse.data[0].tenantId;
+    }
     
     const data = await fetchXeroData(settings.access_token, tenantId, `Reports/${reportID}`, {}, companyId);
     res.json({ success: true, message: 'Report retrieved successfully', data });
   } catch (error) {
     console.error('Get Reports Error:', error);
+    if (error.response?.status === 401) {
+      await clearExpiredTokens(companyId);
+      return res.status(401).json({
+        success: false,
+        message: 'Xero authorization expired. Tokens have been cleared. Please reconnect to Xero.',
+        error: 'Authorization required',
+        action: 'reconnect_required'
+      });
+    }
     res.status(500).json({ success: false, message: 'Failed to get report', error: error.message });
   }
 };
