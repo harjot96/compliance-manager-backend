@@ -145,8 +145,8 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Redirect duplicate /api/ routes to correct paths (must be BEFORE API routes)
-app.use('/api/api', (req, res) => {
-  const newPath = `/api${req.url}`;
+app.all('/api/api/*', (req, res) => {
+  const newPath = req.originalUrl.replace('/api/api/', '/api/');
   console.log(`🔄 Redirecting ${req.originalUrl} to ${newPath}`);
   res.redirect(307, newPath);
 });
