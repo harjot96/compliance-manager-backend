@@ -54,7 +54,9 @@ const saveOpenAISettings = async (req, res, next) => {
         temperature: settings.temperature,
         isActive: settings.is_active,
         createdAt: settings.created_at,
-        updatedAt: settings.updated_at
+        updatedAt: settings.updated_at,
+        apiKeyStatus: 'encrypted_and_stored',
+        apiKeyPreview: `sk-...${apiKey.substring(apiKey.length - 4)}` // Show last 4 characters
       }
     });
     
@@ -92,7 +94,9 @@ const getOpenAISettings = async (req, res, next) => {
         temperature: settings.temperature,
         isActive: settings.isActive,
         createdAt: settings.createdAt,
-        updatedAt: settings.updatedAt
+        updatedAt: settings.updatedAt,
+        apiKeyStatus: 'encrypted_and_stored',
+        apiKeyPreview: `sk-...${settings.apiKey.substring(settings.apiKey.length - 4)}` // Show last 4 characters
       }
     });
     
