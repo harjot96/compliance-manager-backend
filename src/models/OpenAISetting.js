@@ -49,7 +49,7 @@ class OpenAISetting {
    */
   static async addMissingColumns() {
     const columns = [
-      { name: 'max_tokens', type: 'INTEGER DEFAULT 1000' },
+      { name: 'max_tokens', type: 'INTEGER DEFAULT 4000' },
       { name: 'model', type: 'VARCHAR(50) DEFAULT \'gpt-3.5-turbo\'' },
       { name: 'temperature', type: 'DECIMAL(3,2) DEFAULT 0.7' }
     ];

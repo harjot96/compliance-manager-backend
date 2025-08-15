@@ -11,7 +11,7 @@ const saveOpenAISettings = async (req, res, next) => {
     // Validation schema
     const schema = Joi.object({
       apiKey: Joi.string().required().pattern(/^sk-/).message('API key must start with sk-'),
-      maxTokens: Joi.number().integer().min(1).max(4000).optional(),
+      maxTokens: Joi.number().integer().min(1).optional(),
       model: Joi.string().valid('gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini').optional(),
       temperature: Joi.number().min(0).max(2).optional()
     });

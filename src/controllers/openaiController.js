@@ -8,7 +8,7 @@ const OpenAISetting = require('../models/OpenAISetting');
  */
 const chatCompletion = async (req, res, next) => {
   try {
-    const { prompt, model = 'gpt-3.5-turbo', maxTokens = 1000, temperature = 0.7 } = req.body;
+    const { prompt, model = 'gpt-3.5-turbo', maxTokens = 4000, temperature = 0.7 } = req.body;
 
     // Validate required fields
     if (!prompt) {
@@ -99,7 +99,7 @@ const generateComplianceText = async (req, res, next) => {
       daysLeft, 
       customPrompt,
       model = 'gpt-3.5-turbo',
-      maxTokens = 1000,
+      maxTokens = 4000,
       temperature = 0.7
     } = req.body;
 
@@ -208,7 +208,7 @@ const generateTemplate = async (req, res, next) => {
       tone = 'professional',
       customPrompt,
       model = 'gpt-3.5-turbo',
-      maxTokens = 1000,
+      maxTokens = 4000,
       temperature = 0.7
     } = req.body;
 
@@ -335,7 +335,7 @@ const analyzeContent = async (req, res, next) => {
       analysisType = 'compliance', // 'compliance', 'tone', 'effectiveness'
       customPrompt,
       model = 'gpt-3.5-turbo',
-      maxTokens = 1000,
+      maxTokens = 4000,
       temperature = 0.7
     } = req.body;
 
