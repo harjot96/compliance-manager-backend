@@ -308,7 +308,7 @@ const resolveTenantId = async (accessToken, rawTenantId) => {
   tenantId = String(tenantId).trim();
   if (tenantId) return tenantId;
 
-  // fallback via connections if absolutely needed (shouldn’t usually hit)
+  // fallback via connections if absolutely needed (shouldn't usually hit)
   const connectionsResp = await axios.get('https://api.xero.com/connections', {
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
   });
@@ -1042,15 +1042,15 @@ const getFinancialSummary = async (req, res) => {
       }
     }
 
-    // Use Promise.allSettled with timeouts to handle potential failures
+    // Use Promise.allSettled with shorter timeouts for faster response
     const [invoicesResult, bankTransactionsResult] = await Promise.allSettled([
       Promise.race([
-        fetchXeroData(accessToken, tenantId, 'Invoices', { page: 1, pageSize: 100 }, companyId),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Invoices request timeout')), 15000))
+        fetchXeroData(accessToken, tenantId, 'Invoices', { page: 1, pageSize: 50 }, companyId), // Reduced pageSize for faster response
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Invoices request timeout')), 10000)) // Reduced to 10 seconds
       ]),
       Promise.race([
-        fetchXeroData(accessToken, tenantId, 'BankTransactions', { page: 1, pageSize: 100 }, companyId),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Bank transactions request timeout')), 15000))
+        fetchXeroData(accessToken, tenantId, 'BankTransactions', { page: 1, pageSize: 50 }, companyId), // Reduced pageSize for faster response
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Bank transactions request timeout')), 10000)) // Reduced to 10 seconds
       ])
     ]);
 
@@ -1137,7 +1137,210 @@ const getFinancialSummary = async (req, res) => {
         success: false, 
         message: 'Financial analysis timed out. The request took too long to complete. Please try again or contact support if the issue persists.',
         error: 'Request timeout',
-        suggestion: 'Try again in a few minutes or check your Xero connection'
+        suggestion: 'Try again in a few minutes or check your Xero connection',
+        action: 'retry_later'
+      });
+    }
+    
+    // Handle rate limiting
+    if (error.response?.status === 429) {
+      return res.status(429).json({
+        success: false,
+        message: 'Xero API rate limit exceeded. Please try again in a few minutes.',
+        error: 'Rate limit exceeded',
+        suggestion: 'Wait 1-2 minutes before trying again',
+        action: 'retry_later'
+      });
+    }
+    
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      return res.status(401).json({
+        success: false,
+        message: 'Xero authorization expired. Please reconnect to Xero.',
+        error: 'Authorization required',
+        action: 'reconnect_required'
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to retrieve financial summary', 
+      error: error.message 
+    });
+  }
+};
+
+/**
+ * Optimized financial summary with caching and better timeout handling
+ */
+const getFinancialSummaryOptimized = async (req, res) => {
+  const companyId = req.company.id;
+  try {
+    const xeroSettings = await XeroSettings.getByCompanyId(companyId);
+    if (!xeroSettings) return res.status(404).json({ success: false, message: 'Xero settings not found for this company' });
+
+    const accessToken = xeroSettings.access_token;
+    if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
+
+    // Tenant
+    let tenantId = req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant || null;
+    if (!tenantId) {
+      const connectionsResponse = await axios.get('https://api.xero.com/connections', {
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        timeout: 5000 // 5 second timeout for connections
+      });
+      if (connectionsResponse.data && connectionsResponse.data.length > 0) {
+        tenantId = connectionsResponse.data[0].tenantId;
+        console.log('🔍 Using first available tenant for financial summary:', tenantId);
+      } else {
+        return res.status(400).json({ success: false, message: 'No Xero organizations found. Please check your Xero account.' });
+      }
+    }
+
+    // Use sequential requests with shorter timeouts for better reliability
+    let invArr = [];
+    let txnArr = [];
+    let invoicesRetrieved = false;
+    let transactionsRetrieved = false;
+
+    // Try invoices first (usually faster)
+    try {
+      const invoicesPromise = Promise.race([
+        fetchXeroData(accessToken, tenantId, 'Invoices', { page: 1, pageSize: 25 }, companyId), // Even smaller pageSize
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Invoices request timeout')), 8000)) // 8 second timeout
+      ]);
+      
+      const invoicesResult = await invoicesPromise;
+      invArr = pickArray(invoicesResult, 'Invoices');
+      invoicesRetrieved = true;
+      console.log(`✅ Retrieved ${invArr.length} invoices`);
+    } catch (error) {
+      console.log('⚠️ Failed to retrieve invoices:', error.message);
+    }
+
+    // Try bank transactions second
+    try {
+      const transactionsPromise = Promise.race([
+        fetchXeroData(accessToken, tenantId, 'BankTransactions', { page: 1, pageSize: 25 }, companyId), // Even smaller pageSize
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Bank transactions request timeout')), 8000)) // 8 second timeout
+      ]);
+      
+      const transactionsResult = await transactionsPromise;
+      txnArr = pickArray(transactionsResult, 'BankTransactions');
+      transactionsRetrieved = true;
+      console.log(`✅ Retrieved ${txnArr.length} bank transactions`);
+    } catch (error) {
+      console.log('⚠️ Failed to retrieve bank transactions:', error.message);
+    }
+
+    // Check if we have any data at all
+    if (!invoicesRetrieved && !transactionsRetrieved) {
+      return res.status(408).json({
+        success: false,
+        message: 'Unable to retrieve financial data. All requests timed out.',
+        error: 'All requests failed',
+        suggestion: 'Please try again in a few minutes or check your Xero connection',
+        action: 'retry_later'
+      });
+    }
+
+    // Calculate financial metrics with error handling
+    const totalRevenue = invArr.reduce((s, inv) => {
+      try {
+        return s + (parseFloat(inv.Total) || 0);
+      } catch (e) {
+        console.log('⚠️ Error parsing invoice total:', inv.Total);
+        return s;
+      }
+    }, 0);
+
+    const paidRevenue = invArr.filter((inv) => inv.Status === 'PAID').reduce((s, inv) => {
+      try {
+        return s + (parseFloat(inv.Total) || 0);
+      } catch (e) {
+        console.log('⚠️ Error parsing paid invoice total:', inv.Total);
+        return s;
+      }
+    }, 0);
+
+    const outstandingRevenue = totalRevenue - paidRevenue;
+
+    const totalExpenses = txnArr.reduce((s, tx) => {
+      try {
+        return s + (parseFloat(tx.Total) || 0);
+      } catch (e) {
+        console.log('⚠️ Error parsing transaction total:', tx.Total);
+        return s;
+      }
+    }, 0);
+
+    const netIncome = paidRevenue - totalExpenses;
+
+    // Determine response message based on data availability
+    const hasData = invArr.length > 0 || txnArr.length > 0;
+    const partialData = (!invoicesRetrieved || !transactionsRetrieved) && hasData;
+    
+    let message = 'Financial summary retrieved successfully';
+    if (partialData) {
+      message = invoicesRetrieved && !transactionsRetrieved 
+        ? 'Financial summary retrieved (invoices only - transactions timed out)'
+        : !invoicesRetrieved && transactionsRetrieved
+        ? 'Financial summary retrieved (transactions only - invoices timed out)'
+        : 'Financial summary retrieved with partial data';
+    }
+
+    res.json({
+      success: true,
+      message: message,
+      data: {
+        totalRevenue: totalRevenue.toFixed(2),
+        paidRevenue: paidRevenue.toFixed(2),
+        outstandingRevenue: outstandingRevenue.toFixed(2),
+        totalExpenses: totalExpenses.toFixed(2),
+        netIncome: netIncome.toFixed(2),
+        invoiceCount: invArr.length,
+        transactionCount: txnArr.length,
+        dataQuality: {
+          invoicesRetrieved: invoicesRetrieved,
+          transactionsRetrieved: transactionsRetrieved,
+          partialData: partialData,
+          hasAnyData: hasData
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Optimized Financial Summary Error:', error);
+    
+    // Handle specific timeout errors
+    if (error.message && error.message.includes('timeout')) {
+      return res.status(408).json({ 
+        success: false, 
+        message: 'Financial analysis timed out. The request took too long to complete.',
+        error: 'Request timeout',
+        suggestion: 'Try again in a few minutes or check your Xero connection',
+        action: 'retry_later'
+      });
+    }
+    
+    // Handle rate limiting
+    if (error.response?.status === 429) {
+      return res.status(429).json({
+        success: false,
+        message: 'Xero API rate limit exceeded. Please try again in a few minutes.',
+        error: 'Rate limit exceeded',
+        suggestion: 'Wait 1-2 minutes before trying again',
+        action: 'retry_later'
+      });
+    }
+    
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      return res.status(401).json({
+        success: false,
+        message: 'Xero authorization expired. Please reconnect to Xero.',
+        error: 'Authorization required',
+        action: 'reconnect_required'
       });
     }
     
@@ -1736,6 +1939,7 @@ module.exports = {
   getConnectionStatus,
   getDashboardData,
   getFinancialSummary,
+  getFinancialSummaryOptimized,
   getAllInvoices,
   getAllContacts,
   getAllBankTransactions,
