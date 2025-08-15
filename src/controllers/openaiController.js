@@ -6,124 +6,202 @@ const OpenAISetting = require('../models/OpenAISetting');
  * Handle large prompts by chunking or using alternative models
  */
 const handleLargePrompt = async (openai, prompt, model, maxTokens, temperature) => {
-  // Try with the original model first
-  try {
-    const completion = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: maxTokens,
-      temperature: temperature
-    });
-    return completion;
-  } catch (error) {
-    // If we get a context length error, try alternative approaches
-    if (error.message && error.message.includes('maximum context length')) {
-      console.log('⚠️ Context length exceeded, trying alternative approaches...');
-      
-      // Try with GPT-4o which has larger context
-      if (model !== 'gpt-4o') {
-        try {
-          console.log('🔄 Trying with GPT-4o (larger context)...');
-          const completion = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: 'user',
-                content: prompt
-              }
-            ],
-            max_tokens: maxTokens,
-            temperature: temperature
-          });
-          return completion;
-        } catch (gpt4oError) {
-          console.log('❌ GPT-4o also failed, trying chunking...');
-        }
-      }
-      
-      // If still failing, try chunking the prompt
-      try {
-        console.log('🔄 Chunking large prompt...');
-        const chunks = chunkPrompt(prompt, 12000); // Leave room for response
-        const responses = [];
-        
-        for (let i = 0; i < chunks.length; i++) {
-          const chunk = chunks[i];
-          const chunkPrompt = i === 0 
-            ? `Please analyze the following content: ${chunk}`
-            : `Continuing from previous analysis, here's the next part: ${chunk}`;
-          
-          const completion = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: 'user',
-                content: chunkPrompt
-              }
-            ],
-            max_tokens: Math.min(maxTokens, 4000),
-            temperature: temperature
-          });
-          
-          responses.push(completion.choices[0]?.message?.content || '');
-        }
-        
-        // Combine responses
-        const combinedResponse = responses.join('\n\n');
-        
-        // Create a mock completion object
-        return {
-          choices: [{
-            message: { content: combinedResponse },
-            finish_reason: 'stop'
-          }],
-          usage: {
-            prompt_tokens: 0,
-            completion_tokens: combinedResponse.length,
-            total_tokens: combinedResponse.length
+  // Check prompt size first
+  const promptLength = prompt.length;
+  const estimatedTokens = Math.ceil(promptLength / 4); // Rough estimate: 1 token ≈ 4 characters
+  
+  console.log(`📊 Prompt analysis: ${promptLength} characters, ~${estimatedTokens} tokens`);
+  
+  // Model context limits (approximate)
+  const contextLimits = {
+    'gpt-3.5-turbo': 16385,
+    'gpt-4': 8192,
+    'gpt-4o': 128000,
+    'gpt-4o-mini': 128000
+  };
+  
+  const modelLimit = contextLimits[model] || 16385;
+  const safeLimit = Math.floor(modelLimit * 0.8); // Use 80% of limit to be safe
+  
+  // If prompt is within safe limits, try original model
+  if (estimatedTokens < safeLimit) {
+    try {
+      console.log(`✅ Prompt within safe limits for ${model}, proceeding...`);
+      const completion = await openai.chat.completions.create({
+        model: model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
           }
-        };
-      } catch (chunkError) {
-        throw new Error(`Failed to process large prompt even with chunking: ${chunkError.message}`);
+        ],
+        max_tokens: maxTokens,
+        temperature: temperature
+      });
+      return completion;
+    } catch (error) {
+      // If it's not a context length error, re-throw
+      if (!error.message || !error.message.includes('maximum context length')) {
+        throw error;
       }
+      console.log('⚠️ Context length exceeded despite size check, trying alternatives...');
+    }
+  } else {
+    console.log(`⚠️ Prompt too large for ${model} (${estimatedTokens} > ${safeLimit}), trying alternatives...`);
+  }
+  
+  // Try with GPT-4o which has much larger context
+  if (model !== 'gpt-4o') {
+    try {
+      console.log('🔄 Trying with GPT-4o (larger context)...');
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: Math.min(maxTokens, 8000), // Limit response size
+        temperature: temperature
+      });
+      return completion;
+    } catch (gpt4oError) {
+      console.log('❌ GPT-4o also failed, trying chunking...');
+      console.log('Error:', gpt4oError.message);
+    }
+  }
+  
+  // If still failing, try chunking the prompt
+  try {
+    console.log('🔄 Chunking large prompt...');
+    const chunks = chunkPrompt(prompt, 8000); // Smaller chunks for better reliability
+    console.log(`📊 Split into ${chunks.length} chunks`);
+    
+    const responses = [];
+    
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      console.log(`📝 Processing chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
+      
+      const chunkPrompt = i === 0 
+        ? `Please analyze the following content and provide a comprehensive response: ${chunk}`
+        : `Continuing from previous analysis, here's the next part to analyze: ${chunk}`;
+      
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: chunkPrompt
+          }
+        ],
+        max_tokens: Math.min(maxTokens, 2000), // Smaller responses per chunk
+        temperature: temperature
+      });
+      
+      const response = completion.choices[0]?.message?.content || '';
+      responses.push(response);
+      console.log(`✅ Chunk ${i + 1} processed (${response.length} chars)`);
     }
     
-    // If it's not a context length error, re-throw
-    throw error;
+    // Combine responses intelligently
+    const combinedResponse = responses.join('\n\n---\n\n');
+    
+    console.log(`✅ Successfully processed all chunks, combined response: ${combinedResponse.length} chars`);
+    
+    // Create a mock completion object
+    return {
+      choices: [{
+        message: { content: combinedResponse },
+        finish_reason: 'stop'
+      }],
+      usage: {
+        prompt_tokens: estimatedTokens,
+        completion_tokens: combinedResponse.length,
+        total_tokens: estimatedTokens + combinedResponse.length
+      }
+    };
+  } catch (chunkError) {
+    console.error('❌ Chunking failed:', chunkError.message);
+    throw new Error(`Failed to process large prompt even with chunking. Please try a shorter prompt or break your request into smaller parts. Error: ${chunkError.message}`);
   }
 };
 
 /**
- * Chunk a large prompt into smaller pieces
+ * Chunk a large prompt into smaller pieces intelligently
  */
-const chunkPrompt = (prompt, maxChunkSize = 12000) => {
+const chunkPrompt = (prompt, maxChunkSize = 8000) => {
   const chunks = [];
-  let currentChunk = '';
   
-  // Split by sentences to avoid breaking context
-  const sentences = prompt.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  // If prompt is already small enough, return as single chunk
+  if (prompt.length <= maxChunkSize) {
+    return [prompt];
+  }
   
-  for (const sentence of sentences) {
-    const testChunk = currentChunk + sentence + '. ';
+  // Try to split by paragraphs first (double newlines)
+  const paragraphs = prompt.split(/\n\s*\n/);
+  
+  if (paragraphs.length > 1) {
+    let currentChunk = '';
     
-    if (testChunk.length > maxChunkSize && currentChunk.length > 0) {
+    for (const paragraph of paragraphs) {
+      const testChunk = currentChunk + (currentChunk ? '\n\n' : '') + paragraph;
+      
+      if (testChunk.length > maxChunkSize && currentChunk.length > 0) {
+        chunks.push(currentChunk.trim());
+        currentChunk = paragraph;
+      } else {
+        currentChunk = testChunk;
+      }
+    }
+    
+    if (currentChunk.trim().length > 0) {
       chunks.push(currentChunk.trim());
-      currentChunk = sentence + '. ';
-    } else {
-      currentChunk = testChunk;
+    }
+  } else {
+    // If no paragraphs, split by sentences
+    const sentences = prompt.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    let currentChunk = '';
+    
+    for (const sentence of sentences) {
+      const testChunk = currentChunk + sentence + '. ';
+      
+      if (testChunk.length > maxChunkSize && currentChunk.length > 0) {
+        chunks.push(currentChunk.trim());
+        currentChunk = sentence + '. ';
+      } else {
+        currentChunk = testChunk;
+      }
+    }
+    
+    if (currentChunk.trim().length > 0) {
+      chunks.push(currentChunk.trim());
     }
   }
   
-  if (currentChunk.trim().length > 0) {
-    chunks.push(currentChunk.trim());
+  // If still no chunks, force split by character count
+  if (chunks.length === 0) {
+    for (let i = 0; i < prompt.length; i += maxChunkSize) {
+      chunks.push(prompt.substring(i, i + maxChunkSize));
+    }
   }
   
-  return chunks.length > 0 ? chunks : [prompt.substring(0, maxChunkSize)];
+  // Ensure no chunk is too large
+  const finalChunks = [];
+  for (const chunk of chunks) {
+    if (chunk.length > maxChunkSize) {
+      // Split large chunks further
+      for (let i = 0; i < chunk.length; i += maxChunkSize) {
+        finalChunks.push(chunk.substring(i, i + maxChunkSize));
+      }
+    } else {
+      finalChunks.push(chunk);
+    }
+  }
+  
+  console.log(`📊 Chunking result: ${finalChunks.length} chunks, sizes: ${finalChunks.map(c => c.length).join(', ')}`);
+  return finalChunks;
 };
 
 /**
@@ -139,6 +217,25 @@ const chatCompletion = async (req, res, next) => {
       return res.status(400).json({ 
         success: false, 
         message: 'Prompt is required' 
+      });
+    }
+
+    // Validate prompt size
+    const promptLength = prompt.length;
+    const estimatedTokens = Math.ceil(promptLength / 4);
+    
+    // Absolute maximum (GPT-4o limit)
+    if (estimatedTokens > 100000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Prompt too large. Maximum size is approximately 100,000 tokens.',
+        error: 'Prompt size exceeded',
+        suggestion: 'Please break your request into smaller parts',
+        promptSize: {
+          characters: promptLength,
+          estimatedTokens: estimatedTokens,
+          maxAllowed: 100000
+        }
       });
     }
 
