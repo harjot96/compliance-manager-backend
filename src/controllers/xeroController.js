@@ -321,12 +321,27 @@ const resolveTenantId = async (accessToken, rawTenantId) => {
 const refreshXeroToken = async (refreshToken, clientId, clientSecret) => {
   try {
     console.log('🔄 Refreshing Xero access token...');
-    const params = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken });
+    
+    // Validate inputs
+    if (!refreshToken || !clientId || !clientSecret) {
+      console.log('❌ Missing required parameters for token refresh');
+      return { 
+        success: false, 
+        error: 'Missing refresh token, client ID, or client secret' 
+      };
+    }
+    
+    const params = new URLSearchParams({ 
+      grant_type: 'refresh_token', 
+      refresh_token: refreshToken 
+    });
+    
     const response = await axios.post('https://identity.xero.com/connect/token', params, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
-      }
+      },
+      timeout: 15000 // 15 second timeout for token refresh
     });
 
     console.log('✅ Token refresh successful');
@@ -339,7 +354,38 @@ const refreshXeroToken = async (refreshToken, clientId, clientSecret) => {
     };
   } catch (error) {
     console.error('❌ Token refresh failed:', error.response?.data || error.message);
-    return { success: false, error: error.response?.data || error.message };
+    
+    // Handle specific error cases
+    if (error.response?.status === 400) {
+      const errorData = error.response.data;
+      if (errorData.error === 'invalid_grant') {
+        return { 
+          success: false, 
+          error: 'Refresh token is invalid or expired. Please reconnect to Xero.',
+          errorType: 'invalid_refresh_token'
+        };
+      } else if (errorData.error === 'invalid_client') {
+        return { 
+          success: false, 
+          error: 'Invalid client credentials. Please check your Xero app configuration.',
+          errorType: 'invalid_client'
+        };
+      }
+    }
+    
+    if (error.code === 'ECONNABORTED') {
+      return { 
+        success: false, 
+        error: 'Token refresh timed out. Please try again.',
+        errorType: 'timeout'
+      };
+    }
+    
+    return { 
+      success: false, 
+      error: error.response?.data || error.message,
+      errorType: 'unknown'
+    };
   }
 };
 
@@ -403,7 +449,7 @@ const fetchXeroData = async (accessToken, tenantId, resourceType, params = {}, c
     if (error.response?.status === 401 && companyId) {
       console.log('🔄 Token expired, attempting to refresh...');
       const xeroSettings = await XeroSettings.getByCompanyId(companyId);
-      if (xeroSettings?.refresh_token) {
+      if (xeroSettings?.refresh_token && xeroSettings?.client_id && xeroSettings?.client_secret) {
         const refresh = await refreshXeroToken(
           xeroSettings.refresh_token,
           xeroSettings.client_id,
@@ -422,9 +468,17 @@ const fetchXeroData = async (accessToken, tenantId, resourceType, params = {}, c
           });
           console.log(`✅ Xero data fetched after token refresh: ${resourceType}`);
           return retryResp.data;
+        } else {
+          console.log('❌ Token refresh failed:', refresh.error);
+          if (refresh.errorType === 'invalid_refresh_token') {
+            console.log('🔄 Refresh token is invalid, clearing tokens and requiring reconnection');
+            await clearExpiredTokens(companyId);
+          }
         }
+      } else {
+        console.log('❌ Missing refresh token or client credentials');
+        await clearExpiredTokens(companyId);
       }
-      await clearExpiredTokens(companyId);
     }
 
     throw error;
