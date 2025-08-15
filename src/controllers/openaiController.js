@@ -3,6 +3,130 @@ const Joi = require('joi');
 const OpenAISetting = require('../models/OpenAISetting');
 
 /**
+ * Handle large prompts by chunking or using alternative models
+ */
+const handleLargePrompt = async (openai, prompt, model, maxTokens, temperature) => {
+  // Try with the original model first
+  try {
+    const completion = await openai.chat.completions.create({
+      model: model,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: maxTokens,
+      temperature: temperature
+    });
+    return completion;
+  } catch (error) {
+    // If we get a context length error, try alternative approaches
+    if (error.message && error.message.includes('maximum context length')) {
+      console.log('⚠️ Context length exceeded, trying alternative approaches...');
+      
+      // Try with GPT-4o which has larger context
+      if (model !== 'gpt-4o') {
+        try {
+          console.log('🔄 Trying with GPT-4o (larger context)...');
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ],
+            max_tokens: maxTokens,
+            temperature: temperature
+          });
+          return completion;
+        } catch (gpt4oError) {
+          console.log('❌ GPT-4o also failed, trying chunking...');
+        }
+      }
+      
+      // If still failing, try chunking the prompt
+      try {
+        console.log('🔄 Chunking large prompt...');
+        const chunks = chunkPrompt(prompt, 12000); // Leave room for response
+        const responses = [];
+        
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
+          const chunkPrompt = i === 0 
+            ? `Please analyze the following content: ${chunk}`
+            : `Continuing from previous analysis, here's the next part: ${chunk}`;
+          
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [
+              {
+                role: 'user',
+                content: chunkPrompt
+              }
+            ],
+            max_tokens: Math.min(maxTokens, 4000),
+            temperature: temperature
+          });
+          
+          responses.push(completion.choices[0]?.message?.content || '');
+        }
+        
+        // Combine responses
+        const combinedResponse = responses.join('\n\n');
+        
+        // Create a mock completion object
+        return {
+          choices: [{
+            message: { content: combinedResponse },
+            finish_reason: 'stop'
+          }],
+          usage: {
+            prompt_tokens: 0,
+            completion_tokens: combinedResponse.length,
+            total_tokens: combinedResponse.length
+          }
+        };
+      } catch (chunkError) {
+        throw new Error(`Failed to process large prompt even with chunking: ${chunkError.message}`);
+      }
+    }
+    
+    // If it's not a context length error, re-throw
+    throw error;
+  }
+};
+
+/**
+ * Chunk a large prompt into smaller pieces
+ */
+const chunkPrompt = (prompt, maxChunkSize = 12000) => {
+  const chunks = [];
+  let currentChunk = '';
+  
+  // Split by sentences to avoid breaking context
+  const sentences = prompt.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  
+  for (const sentence of sentences) {
+    const testChunk = currentChunk + sentence + '. ';
+    
+    if (testChunk.length > maxChunkSize && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      currentChunk = sentence + '. ';
+    } else {
+      currentChunk = testChunk;
+    }
+  }
+  
+  if (currentChunk.trim().length > 0) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks.length > 0 ? chunks : [prompt.substring(0, maxChunkSize)];
+};
+
+/**
  * OpenAI Chat Completion
  * Uses stored API key from database
  */
@@ -32,18 +156,8 @@ const chatCompletion = async (req, res, next) => {
       apiKey: settings.apiKey
     });
 
-    // Create chat completion
-    const completion = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: maxTokens,
-      temperature: temperature
-    });
+    // Create chat completion with large prompt handling
+    const completion = await handleLargePrompt(openai, prompt, model, maxTokens, temperature);
 
     const response = completion.choices[0]?.message?.content || 'No response generated';
 
@@ -73,6 +187,15 @@ const chatCompletion = async (req, res, next) => {
         message: 'Rate limit exceeded. Please try again later.' 
       });
     } else if (error.status === 400) {
+      // Check if it's a context length error
+      if (error.message && error.message.includes('maximum context length')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Prompt too long. The system will automatically handle large prompts, but this one exceeded all limits. Please try a shorter prompt.',
+          error: 'Context length exceeded',
+          suggestion: 'Try breaking your request into smaller parts'
+        });
+      }
       return res.status(400).json({ 
         success: false, 
         message: 'Invalid request. Please check your prompt and parameters.' 
@@ -141,22 +264,8 @@ const generateComplianceText = async (req, res, next) => {
       Generate a clear, actionable reminder:`;
     }
 
-    // Create chat completion
-    const completion = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a professional compliance management assistant. Generate clear, actionable compliance reminders.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: maxTokens,
-      temperature: temperature
-    });
+    // Create chat completion with large prompt handling
+    const completion = await handleLargePrompt(openai, prompt, model, maxTokens, temperature);
 
     const response = completion.choices[0]?.message?.content || 'No response generated';
 
@@ -185,6 +294,20 @@ const generateComplianceText = async (req, res, next) => {
       return res.status(429).json({ 
         success: false, 
         message: 'Rate limit exceeded. Please try again later.' 
+      });
+    } else if (error.status === 400) {
+      // Check if it's a context length error
+      if (error.message && error.message.includes('maximum context length')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Prompt too long. The system will automatically handle large prompts, but this one exceeded all limits. Please try a shorter prompt.',
+          error: 'Context length exceeded',
+          suggestion: 'Try breaking your request into smaller parts'
+        });
+      }
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid request. Please check your prompt and parameters.' 
       });
     }
 
@@ -269,22 +392,8 @@ const generateTemplate = async (req, res, next) => {
       }
     }
 
-    // Create chat completion
-    const completion = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a professional compliance management assistant. Generate ${templateType} templates for compliance reminders.`
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: maxTokens,
-      temperature: temperature
-    });
+    // Create chat completion with large prompt handling
+    const completion = await handleLargePrompt(openai, prompt, model, maxTokens, temperature);
 
     const response = completion.choices[0]?.message?.content || 'No template generated';
 
@@ -313,6 +422,20 @@ const generateTemplate = async (req, res, next) => {
       return res.status(429).json({ 
         success: false, 
         message: 'Rate limit exceeded. Please try again later.' 
+      });
+    } else if (error.status === 400) {
+      // Check if it's a context length error
+      if (error.message && error.message.includes('maximum context length')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Template prompt too long. The system will automatically handle large prompts, but this one exceeded all limits. Please try a shorter prompt.',
+          error: 'Context length exceeded',
+          suggestion: 'Try breaking your template request into smaller parts'
+        });
+      }
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid request. Please check your template parameters.' 
       });
     }
 
@@ -405,22 +528,8 @@ const analyzeContent = async (req, res, next) => {
       }
     }
 
-    // Create chat completion
-    const completion = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a professional compliance communication analyst. Provide detailed, actionable insights.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: maxTokens,
-      temperature: temperature
-    });
+    // Create chat completion with large prompt handling
+    const completion = await handleLargePrompt(openai, prompt, model, maxTokens, temperature);
 
     const response = completion.choices[0]?.message?.content || 'No analysis generated';
 
@@ -448,6 +557,20 @@ const analyzeContent = async (req, res, next) => {
       return res.status(429).json({ 
         success: false, 
         message: 'Rate limit exceeded. Please try again later.' 
+      });
+    } else if (error.status === 400) {
+      // Check if it's a context length error
+      if (error.message && error.message.includes('maximum context length')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Content too long. The system will automatically handle large content, but this one exceeded all limits. Please try with shorter content.',
+          error: 'Context length exceeded',
+          suggestion: 'Try breaking your content into smaller parts'
+        });
+      }
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid request. Please check your content and parameters.' 
       });
     }
 
