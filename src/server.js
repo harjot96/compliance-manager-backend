@@ -187,8 +187,13 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+// Set server timeout to handle long-running requests
+server.timeout = 60000; // 60 seconds timeout for server
+server.keepAliveTimeout = 65000; // Keep-alive timeout
+server.headersTimeout = 66000; // Headers timeout
 
 module.exports = app;

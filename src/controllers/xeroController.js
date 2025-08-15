@@ -378,7 +378,10 @@ const fetchXeroData = async (accessToken, tenantId, resourceType, params = {}, c
   console.log(`🔍 Fetching Xero data: ${url}`);
 
   try {
-    const response = await axios.get(url, { headers });
+    const response = await axios.get(url, { 
+      headers,
+      timeout: 15000 // 15 second timeout for Xero API calls
+    });
     console.log(`✅ Xero data fetched: ${resourceType}`);
     return response.data;
   } catch (error) {
@@ -388,7 +391,10 @@ const fetchXeroData = async (accessToken, tenantId, resourceType, params = {}, c
     if (error.response?.status === 429) {
       console.log('⚠️ Rate limit exceeded, waiting 2 seconds before retry...');
       await new Promise((r) => setTimeout(r, 2000));
-      const retryResp = await axios.get(url, { headers });
+      const retryResp = await axios.get(url, { 
+        headers,
+        timeout: 15000 // 15 second timeout for retry
+      });
       console.log(`✅ Xero data fetched after retry: ${resourceType}`);
       return retryResp.data;
     }
@@ -411,7 +417,8 @@ const fetchXeroData = async (accessToken, tenantId, resourceType, params = {}, c
             [refresh.accessToken, refresh.refreshToken, new Date(Date.now() + refresh.expiresIn * 1000), companyId]
           );
           const retryResp = await axios.get(url, {
-            headers: { ...headers, Authorization: `Bearer ${refresh.accessToken}` }
+            headers: { ...headers, Authorization: `Bearer ${refresh.accessToken}` },
+            timeout: 15000 // 15 second timeout for token refresh retry
           });
           console.log(`✅ Xero data fetched after token refresh: ${resourceType}`);
           return retryResp.data;
@@ -958,8 +965,8 @@ const getDashboardData = async (req, res) => {
  * Financial summary (fixed casing + token refresh support)
  */
 const getFinancialSummary = async (req, res) => {
+  const companyId = req.company.id;
   try {
-    const companyId = req.company.id;
     const xeroSettings = await XeroSettings.getByCompanyId(companyId);
     if (!xeroSettings) return res.status(404).json({ success: false, message: 'Xero settings not found for this company' });
 
@@ -970,7 +977,8 @@ const getFinancialSummary = async (req, res) => {
     let tenantId = req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant || null;
     if (!tenantId) {
       const connectionsResponse = await axios.get('https://api.xero.com/connections', {
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        timeout: 10000 // 10 second timeout for connections
       });
       if (connectionsResponse.data && connectionsResponse.data.length > 0) {
         tenantId = connectionsResponse.data[0].tenantId;
@@ -980,26 +988,77 @@ const getFinancialSummary = async (req, res) => {
       }
     }
 
-    const [invoices, bankTransactions] = await Promise.all([
-      fetchXeroData(accessToken, tenantId, 'Invoices', { page: 1 }, companyId),
-      fetchXeroData(accessToken, tenantId, 'BankTransactions', { page: 1 }, companyId)
+    // Use Promise.allSettled with timeouts to handle potential failures
+    const [invoicesResult, bankTransactionsResult] = await Promise.allSettled([
+      Promise.race([
+        fetchXeroData(accessToken, tenantId, 'Invoices', { page: 1, pageSize: 100 }, companyId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Invoices request timeout')), 15000))
+      ]),
+      Promise.race([
+        fetchXeroData(accessToken, tenantId, 'BankTransactions', { page: 1, pageSize: 100 }, companyId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Bank transactions request timeout')), 15000))
+      ])
     ]);
 
-    const invArr = pickArray(invoices, 'Invoices');
-    const txnArr = pickArray(bankTransactions, 'BankTransactions');
+    // Handle partial failures gracefully
+    let invArr = [];
+    let txnArr = [];
 
-    const totalRevenue = invArr.reduce((s, inv) => s + (parseFloat(inv.Total) || 0), 0);
-    const paidRevenue = invArr.filter((inv) => inv.Status === 'PAID').reduce((s, inv) => s + (parseFloat(inv.Total) || 0), 0);
+    if (invoicesResult.status === 'fulfilled') {
+      invArr = pickArray(invoicesResult.value, 'Invoices');
+      console.log(`✅ Retrieved ${invArr.length} invoices`);
+    } else {
+      console.log('⚠️ Failed to retrieve invoices:', invoicesResult.reason.message);
+    }
+
+    if (bankTransactionsResult.status === 'fulfilled') {
+      txnArr = pickArray(bankTransactionsResult.value, 'BankTransactions');
+      console.log(`✅ Retrieved ${txnArr.length} bank transactions`);
+    } else {
+      console.log('⚠️ Failed to retrieve bank transactions:', bankTransactionsResult.reason.message);
+    }
+
+    // Calculate financial metrics with error handling
+    const totalRevenue = invArr.reduce((s, inv) => {
+      try {
+        return s + (parseFloat(inv.Total) || 0);
+      } catch (e) {
+        console.log('⚠️ Error parsing invoice total:', inv.Total);
+        return s;
+      }
+    }, 0);
+
+    const paidRevenue = invArr.filter((inv) => inv.Status === 'PAID').reduce((s, inv) => {
+      try {
+        return s + (parseFloat(inv.Total) || 0);
+      } catch (e) {
+        console.log('⚠️ Error parsing paid invoice total:', inv.Total);
+        return s;
+      }
+    }, 0);
+
     const outstandingRevenue = totalRevenue - paidRevenue;
 
-    // This is a placeholder – BankTransactions don't directly equal "expenses";
-    // keep your logic, user may classify later.
-    const totalExpenses = txnArr.reduce((s, tx) => s + (parseFloat(tx.Total) || 0), 0);
+    const totalExpenses = txnArr.reduce((s, tx) => {
+      try {
+        return s + (parseFloat(tx.Total) || 0);
+      } catch (e) {
+        console.log('⚠️ Error parsing transaction total:', tx.Total);
+        return s;
+      }
+    }, 0);
+
     const netIncome = paidRevenue - totalExpenses;
+
+    // Check if we have any data
+    const hasData = invArr.length > 0 || txnArr.length > 0;
+    const partialData = (invoicesResult.status === 'rejected' || bankTransactionsResult.status === 'rejected') && hasData;
 
     res.json({
       success: true,
-      message: 'Financial summary retrieved successfully',
+      message: partialData 
+        ? 'Financial summary retrieved with partial data (some sources timed out)'
+        : 'Financial summary retrieved successfully',
       data: {
         totalRevenue: totalRevenue.toFixed(2),
         paidRevenue: paidRevenue.toFixed(2),
@@ -1007,12 +1066,32 @@ const getFinancialSummary = async (req, res) => {
         totalExpenses: totalExpenses.toFixed(2),
         netIncome: netIncome.toFixed(2),
         invoiceCount: invArr.length,
-        transactionCount: txnArr.length
+        transactionCount: txnArr.length,
+        dataQuality: {
+          invoicesRetrieved: invoicesResult.status === 'fulfilled',
+          transactionsRetrieved: bankTransactionsResult.status === 'fulfilled',
+          partialData: partialData
+        }
       }
     });
   } catch (error) {
     console.error('Financial Summary Error:', error);
-    res.status(500).json({ success: false, message: 'Failed to retrieve financial summary', error: error.message });
+    
+    // Handle specific timeout errors
+    if (error.message && error.message.includes('timeout')) {
+      return res.status(408).json({ 
+        success: false, 
+        message: 'Financial analysis timed out. The request took too long to complete. Please try again or contact support if the issue persists.',
+        error: 'Request timeout',
+        suggestion: 'Try again in a few minutes or check your Xero connection'
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to retrieve financial summary', 
+      error: error.message 
+    });
   }
 };
 
