@@ -12,8 +12,9 @@ const complianceDeadlinesRoutes = require('./routes/complianceDeadlinesRoutes');
 const openaiRoutes = require('./routes/openaiRoutes');
 const openaiSettingRoutes = require('./routes/openaiSettingRoutes');
 const xeroRoutes = require('./routes/xeroRoutes');
+const healthRoutes = require('./routes/healthRoutes');
 const errorHandler = require('./middleware/errorHandler');
-const { runMigrations } = require('./utils/migrate');
+const { runAllMigrations } = require('./utils/migrate');
 const { validateProductionUrls } = require('./config/environment');
 
 const app = express();
@@ -32,10 +33,12 @@ try {
 }
 
 // Run migrations on startup with better error handling
-runMigrations().catch(error => {
+runAllMigrations().catch(error => {
   console.error('❌ Migration failed during startup:', error.message);
   console.log('⚠️  Server will start without running migrations');
-  console.log('💡 You can run migrations manually later');
+  console.log('💡 You can run migrations manually later with: node src/utils/migrate.js runAllMigrations');
+}).then(() => {
+  console.log('✅ Migration process completed (success or graceful failure)');
 });
 
 // Security middleware
@@ -150,6 +153,9 @@ app.all('/api/api/*', (req, res) => {
   console.log(`🔄 Redirecting ${req.originalUrl} to ${newPath}`);
   res.redirect(307, newPath);
 });
+
+// Health check routes (no authentication required)
+app.use('/api', healthRoutes);
 
 // API routes
 app.use('/api/companies', companyRoutes);

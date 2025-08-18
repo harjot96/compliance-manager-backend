@@ -243,9 +243,25 @@ const addRoleColumn = async () => {
   }
 };
 
-const runMigrations = async () => {
+/**
+ * Migrate notification templates table
+ */
+const migrateNotificationTemplates = async () => {
   try {
-    console.log('Running migrations...');
+    console.log('🔄 Starting notification templates migration...');
+    
+    // Check if table exists first
+    const tableExists = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'notification_templates'
+      );
+    `);
+    
+    if (!tableExists.rows[0].exists) {
+      console.log('ℹ️  notification_templates table does not exist, skipping migration');
+      return;
+    }
     
     // Add columns to notification_templates if they don't exist
     await db.query(`
@@ -255,9 +271,11 @@ const runMigrations = async () => {
       ADD COLUMN IF NOT EXISTS email_days JSONB DEFAULT '[]';
     `);
     
-    console.log('Migrations completed successfully');
+    console.log('✅ Notification templates migration completed successfully');
   } catch (error) {
-    console.error('Migration error:', error);
+    console.error('❌ Error during notification templates migration:', error);
+    // Don't throw error, just log it
+    console.log('⚠️  Continuing with other migrations...');
   }
 };
 
@@ -267,6 +285,19 @@ const runMigrations = async () => {
 async function migrateOpenAISettings() {
   try {
     console.log('🔄 Starting OpenAI settings migration...');
+    
+    // Check if table exists first
+    const tableExists = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'openai_settings'
+      );
+    `);
+    
+    if (!tableExists.rows[0].exists) {
+      console.log('ℹ️  openai_settings table does not exist, skipping migration');
+      return;
+    }
     
     // Check if columns exist before dropping them
     const checkColumnsQuery = `
@@ -296,7 +327,8 @@ async function migrateOpenAISettings() {
     
   } catch (error) {
     console.error('❌ Error during OpenAI settings migration:', error);
-    throw error;
+    // Don't throw error, just log it
+    console.log('⚠️  Continuing with other migrations...');
   }
 }
 
@@ -311,9 +343,17 @@ async function runAllMigrations() {
     try {
       console.log(`🚀 Starting database migrations (attempt ${retryCount + 1}/${maxRetries})...`);
       
-      // Test database connection first
-      await db.query('SELECT 1');
+      // Test database connection first with timeout
+      const connectionPromise = db.query('SELECT 1');
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), 10000)
+      );
+      
+      await Promise.race([connectionPromise, timeoutPromise]);
       console.log('✅ Database connection test successful');
+      
+      // Run notification templates migration
+      await migrateNotificationTemplates();
       
       // Run OpenAI settings migration
       await migrateOpenAISettings();
@@ -326,11 +366,15 @@ async function runAllMigrations() {
       console.error(`❌ Migration attempt ${retryCount} failed:`, error.message);
       
       if (retryCount < maxRetries) {
-        console.log(`⏳ Retrying in ${retryCount * 2} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
+        const delay = retryCount * 3000; // Longer delays for remote database
+        console.log(`⏳ Retrying in ${delay / 1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       } else {
         console.error('❌ All migration attempts failed');
-        throw error;
+        console.log('⚠️  Server will start without running migrations');
+        console.log('💡 You can run migrations manually later');
+        // Don't throw error, just log it
+        return;
       }
     }
   }
@@ -363,4 +407,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { createTables, dropTables, addRoleColumn, runMigrations, migrateOpenAISettings, runAllMigrations };
+module.exports = { createTables, dropTables, addRoleColumn, migrateOpenAISettings, migrateNotificationTemplates, runAllMigrations };

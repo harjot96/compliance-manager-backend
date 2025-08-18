@@ -7,12 +7,20 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'compliance_management',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD,
-  max: 10, // Reduced from 20
-  min: 2, // Add minimum connections
-  idleTimeoutMillis: 60000, // Increased from 30000
-  connectionTimeoutMillis: 10000, // Increased from 2000
-  acquireTimeoutMillis: 10000, // Add acquire timeout
-  ssl: process.env.DB_HOST && process.env.DB_HOST.includes('render.com') ? { rejectUnauthorized: false } : false
+  max: 5, // Reduced for remote database
+  min: 0, // Start with no connections
+  idleTimeoutMillis: 30000, // Reduced for remote database
+  connectionTimeoutMillis: 15000, // Increased for remote database
+  acquireTimeoutMillis: 15000, // Increased for remote database
+  ssl: process.env.DB_HOST && process.env.DB_HOST.includes('render.com') ? { 
+    rejectUnauthorized: false,
+    sslmode: 'require'
+  } : false,
+  // Additional settings for remote database stability
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
+  // Handle connection errors gracefully
+  allowExitOnIdle: true
 });
 
 // Test database connection
@@ -22,7 +30,17 @@ pool.on('connect', () => {
 
 pool.on('error', (err, client) => {
   console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  // Don't exit process, just log the error
+  console.log('⚠️  Database pool error - continuing with application...');
+});
+
+// Handle pool errors more gracefully
+pool.on('acquire', () => {
+  console.log('Client acquired from pool');
+});
+
+pool.on('release', () => {
+  console.log('Client released back to pool');
 });
 
 module.exports = {
