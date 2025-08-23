@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const XeroSettings = require('../models/XeroSettings');
+const AnomalyDetection = require('../models/AnomalyDetection');
 
 const createTables = async () => {
   try {
@@ -333,6 +334,37 @@ async function migrateOpenAISettings() {
 }
 
 /**
+ * Migrate anomaly detection models table
+ */
+async function migrateAnomalyDetection() {
+  try {
+    console.log('🔄 Migrating anomaly detection models table...');
+    
+    // Check if table exists
+    const tableExists = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'anomaly_detection_models'
+      );
+    `);
+    
+    if (!tableExists.rows[0].exists) {
+      console.log('📋 Creating anomaly detection models table...');
+      await AnomalyDetection.createTable();
+      console.log('✅ Anomaly detection models table created successfully');
+    } else {
+      console.log('ℹ️  Anomaly detection models table already exists');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error during anomaly detection migration:', error);
+    // Don't throw error, just log it
+    console.log('⚠️  Continuing with other migrations...');
+  }
+}
+
+/**
  * Run all migrations with retry logic
  */
 async function runAllMigrations() {
@@ -357,6 +389,9 @@ async function runAllMigrations() {
       
       // Run OpenAI settings migration
       await migrateOpenAISettings();
+      
+      // Run anomaly detection migration
+      await migrateAnomalyDetection();
       
       console.log('✅ All migrations completed successfully');
       return;
@@ -407,4 +442,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { createTables, dropTables, addRoleColumn, migrateOpenAISettings, migrateNotificationTemplates, runAllMigrations };
+module.exports = { createTables, dropTables, addRoleColumn, migrateOpenAISettings, migrateNotificationTemplates, migrateAnomalyDetection, runAllMigrations };

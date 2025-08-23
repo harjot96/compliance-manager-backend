@@ -13,6 +13,7 @@ const openaiRoutes = require('./routes/openaiRoutes');
 const openaiSettingRoutes = require('./routes/openaiSettingRoutes');
 const xeroRoutes = require('./routes/xeroRoutes');
 const healthRoutes = require('./routes/healthRoutes');
+const anomalyDetectionRoutes = require('./routes/anomalyDetectionRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const { runAllMigrations } = require('./utils/migrate');
 const { validateProductionUrls } = require('./config/environment');
@@ -164,6 +165,7 @@ app.use('/api/compliance-deadlines', complianceDeadlinesRoutes);
 app.use('/api/openai', openaiRoutes);
 app.use('/api/openai-admin', openaiSettingRoutes);
 app.use('/api/xero', xeroRoutes);
+app.use('/api/anomaly-detection', anomalyDetectionRoutes);
 
 // Redirect URL handler for frontend OAuth redirects
 app.get('/redirecturl', (req, res) => {
