@@ -11,6 +11,7 @@ class AnomalyDetection {
         training_data JSONB NOT NULL,
         parameters JSONB NOT NULL,
         model_state JSONB,
+        threshold DECIMAL(10,4) DEFAULT 0.5,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_active BOOLEAN DEFAULT true
@@ -20,8 +21,35 @@ class AnomalyDetection {
     try {
       await pool.query(query);
       console.log('✅ Anomaly detection models table created or already exists');
+      
+      // Add threshold column if it doesn't exist
+      await this.addThresholdColumn();
     } catch (error) {
       console.error('❌ Error creating anomaly detection models table:', error);
+      throw error;
+    }
+  }
+
+  static async addThresholdColumn() {
+    const checkQuery = `
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'anomaly_detection_models' 
+      AND column_name = 'threshold'
+    `;
+    
+    try {
+      const result = await pool.query(checkQuery);
+      if (result.rows.length === 0) {
+        const addQuery = `
+          ALTER TABLE anomaly_detection_models 
+          ADD COLUMN threshold DECIMAL(10,4) DEFAULT 0.5
+        `;
+        await pool.query(addQuery);
+        console.log('✅ Added threshold column to anomaly_detection_models table');
+      }
+    } catch (error) {
+      console.error('❌ Error adding threshold column:', error);
       throw error;
     }
   }

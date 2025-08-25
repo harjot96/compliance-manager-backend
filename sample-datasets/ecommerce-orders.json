@@ -1,0 +1,28 @@
+[
+  { "orderValue": 50, "items": 2, "customerAge": 25, "region": "North" },
+  { "orderValue": 75, "items": 3, "customerAge": 30, "region": "South" },
+  { "orderValue": 100, "items": 4, "customerAge": 35, "region": "East" },
+  { "orderValue": 125, "items": 5, "customerAge": 28, "region": "West" },
+  { "orderValue": 80, "items": 3, "customerAge": 32, "region": "North" },
+  { "orderValue": 150, "items": 6, "customerAge": 40, "region": "South" },
+  { "orderValue": 60, "items": 2, "customerAge": 27, "region": "East" },
+  { "orderValue": 90, "items": 4, "customerAge": 33, "region": "West" },
+  { "orderValue": 110, "items": 5, "customerAge": 29, "region": "North" },
+  { "orderValue": 70, "items": 3, "customerAge": 31, "region": "South" },
+  { "orderValue": 130, "items": 5, "customerAge": 34, "region": "East" },
+  { "orderValue": 85, "items": 4, "customerAge": 26, "region": "West" },
+  { "orderValue": 95, "items": 4, "customerAge": 36, "region": "North" },
+  { "orderValue": 140, "items": 6, "customerAge": 38, "region": "South" },
+  { "orderValue": 65, "items": 3, "customerAge": 24, "region": "East" },
+  { "orderValue": 105, "items": 5, "customerAge": 37, "region": "West" },
+  { "orderValue": 115, "items": 5, "customerAge": 39, "region": "North" },
+  { "orderValue": 55, "items": 2, "customerAge": 23, "region": "South" },
+  { "orderValue": 120, "items": 5, "customerAge": 41, "region": "East" },
+  { "orderValue": 135, "items": 6, "customerAge": 42, "region": "West" },
+  { "orderValue": 5000, "items": 50, "customerAge": 18, "region": "North" },
+  { "orderValue": 10, "items": 1, "customerAge": 65, "region": "South" },
+  { "orderValue": 2000, "items": 20, "customerAge": 22, "region": "East" },
+  { "orderValue": 8000, "items": 80, "customerAge": 19, "region": "West" },
+  { "orderValue": 5, "items": 1, "customerAge": 70, "region": "North" }
+]
+

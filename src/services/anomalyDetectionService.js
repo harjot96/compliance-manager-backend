@@ -104,7 +104,7 @@ class AnomalyDetectionService {
       const processedData = this.preprocessData(newData);
       
       // Get anomaly scores
-      const scores = model.predict(processedData);
+      const scores = model.scores(processedData);
       
       // Convert scores to results with flags
       const results = scores.map((score, index) => ({

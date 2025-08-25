@@ -1,0 +1,28 @@
+[
+  { "temperature": 25, "pressure": 100, "humidity": 50, "quality": 95 },
+  { "temperature": 26, "pressure": 102, "humidity": 52, "quality": 94 },
+  { "temperature": 24, "pressure": 98, "humidity": 48, "quality": 96 },
+  { "temperature": 27, "pressure": 105, "humidity": 55, "quality": 93 },
+  { "temperature": 25, "pressure": 101, "humidity": 51, "quality": 95 },
+  { "temperature": 28, "pressure": 108, "humidity": 58, "quality": 92 },
+  { "temperature": 23, "pressure": 97, "humidity": 47, "quality": 97 },
+  { "temperature": 26, "pressure": 103, "humidity": 53, "quality": 94 },
+  { "temperature": 25, "pressure": 99, "humidity": 49, "quality": 96 },
+  { "temperature": 27, "pressure": 106, "humidity": 56, "quality": 93 },
+  { "temperature": 24, "pressure": 100, "humidity": 50, "quality": 95 },
+  { "temperature": 26, "pressure": 104, "humidity": 54, "quality": 94 },
+  { "temperature": 25, "pressure": 102, "humidity": 52, "quality": 95 },
+  { "temperature": 28, "pressure": 107, "humidity": 57, "quality": 92 },
+  { "temperature": 23, "pressure": 96, "humidity": 46, "quality": 97 },
+  { "temperature": 27, "pressure": 105, "humidity": 55, "quality": 93 },
+  { "temperature": 25, "pressure": 101, "humidity": 51, "quality": 95 },
+  { "temperature": 26, "pressure": 103, "humidity": 53, "quality": 94 },
+  { "temperature": 24, "pressure": 99, "humidity": 49, "quality": 96 },
+  { "temperature": 27, "pressure": 106, "humidity": 56, "quality": 93 },
+  { "temperature": 50, "pressure": 200, "humidity": 80, "quality": 60 },
+  { "temperature": 15, "pressure": 50, "humidity": 20, "quality": 85 },
+  { "temperature": 35, "pressure": 150, "humidity": 70, "quality": 75 },
+  { "temperature": 45, "pressure": 180, "humidity": 75, "quality": 65 },
+  { "temperature": 20, "pressure": 60, "humidity": 25, "quality": 90 }
+]
+
