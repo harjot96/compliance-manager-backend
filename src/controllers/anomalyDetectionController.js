@@ -97,7 +97,32 @@ const scoreData = async (req, res) => {
           message: 'No active model found. Please train a model first.'
         });
       }
-      activeModelId = activeModel.id.toString();
+      // Use the most recent completed training job to get the actual model ID
+      const jobs = anomalyDetectionService.getTrainingJobs();
+      const completedJobs = jobs.filter(job => job.status === 'completed');
+      if (completedJobs.length > 0) {
+        activeModelId = completedJobs[completedJobs.length - 1].modelId;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'No completed training jobs found. Please train a model first.'
+        });
+      }
+    } else {
+      // If modelId is provided but it's a numeric ID, we need to find the actual model ID
+      if (/^\d+$/.test(activeModelId)) {
+        // Use the most recent completed training job to get the actual model ID
+        const jobs = anomalyDetectionService.getTrainingJobs();
+        const completedJobs = jobs.filter(job => job.status === 'completed');
+        if (completedJobs.length > 0) {
+          activeModelId = completedJobs[completedJobs.length - 1].modelId;
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: 'No completed training jobs found. Please train a model first.'
+          });
+        }
+      }
     }
 
     // Validate data format

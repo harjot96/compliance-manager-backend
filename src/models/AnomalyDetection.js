@@ -62,7 +62,12 @@ class AnomalyDetection {
     `;
     
     try {
-      const result = await pool.query(query, [name, description, trainingData, parameters, modelState]);
+      // Convert objects to JSON strings for PostgreSQL JSONB columns
+      const trainingDataJson = JSON.stringify(trainingData);
+      const parametersJson = JSON.stringify(parameters);
+      const modelStateJson = modelState ? JSON.stringify(modelState) : null;
+      
+      const result = await pool.query(query, [name, description, trainingDataJson, parametersJson, modelStateJson]);
       return result.rows[0];
     } catch (error) {
       console.error('❌ Error saving anomaly detection model:', error);
@@ -127,7 +132,9 @@ class AnomalyDetection {
     `;
     
     try {
-      const result = await pool.query(query, [id, modelState]);
+      // Convert modelState to JSON string for PostgreSQL JSONB column
+      const modelStateJson = modelState ? JSON.stringify(modelState) : null;
+      const result = await pool.query(query, [id, modelStateJson]);
       return result.rows[0];
     } catch (error) {
       console.error('❌ Error updating anomaly detection model state:', error);

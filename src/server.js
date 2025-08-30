@@ -6,14 +6,16 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+// Import routes
+const healthRoutes = require('./routes/healthRoutes');
 const companyRoutes = require('./routes/companyRoutes');
 const cronjobSettingRoutes = require('./routes/cronjobSettingRoutes');
 const complianceDeadlinesRoutes = require('./routes/complianceDeadlinesRoutes');
 const openaiRoutes = require('./routes/openaiRoutes');
 const openaiSettingRoutes = require('./routes/openaiSettingRoutes');
 const xeroRoutes = require('./routes/xeroRoutes');
-const healthRoutes = require('./routes/healthRoutes');
 const anomalyDetectionRoutes = require('./routes/anomalyDetectionRoutes');
+const templateRoutes = require('./routes/templateRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const { runAllMigrations } = require('./utils/migrate');
 const { validateProductionUrls } = require('./config/environment');
@@ -166,6 +168,7 @@ app.use('/api/openai', openaiRoutes);
 app.use('/api/openai-admin', openaiSettingRoutes);
 app.use('/api/xero', xeroRoutes);
 app.use('/api/anomaly-detection', anomalyDetectionRoutes);
+app.use('/api/templates', templateRoutes);
 
 // Redirect URL handler for frontend OAuth redirects
 app.get('/redirecturl', (req, res) => {

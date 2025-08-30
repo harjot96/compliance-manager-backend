@@ -82,10 +82,10 @@ const createTemplate = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Name and body are required' });
     }
     
-    // For email templates, subject is required
-    if (type === 'email' && !subject) {
-      return res.status(400).json({ success: false, message: 'Subject is required for email templates' });
-    }
+    // Subject is optional for all templates now
+    // if (type === 'email' && !subject) {
+    //   return res.status(400).json({ success: false, message: 'Subject is required for email templates' });
+    // }
     
     // Process days based on template type
     let processedSmsDays = [];
@@ -134,10 +134,10 @@ const updateTemplate = async (req, res, next) => {
     if (!name || !body) {
       return res.status(400).json({ success: false, message: 'Name and body are required' });
     }
-    // For email templates, subject is required
-    if (type === 'email' && !subject) {
-      return res.status(400).json({ success: false, message: 'Subject is required for email templates' });
-    }
+    // Subject is optional for all templates now
+    // if (type === 'email' && !subject) {
+    //   return res.status(400).json({ success: false, message: 'Subject is required for email templates' });
+    // }
     // Process days based on template type
     let processedSmsDays = [];
     let processedEmailDays = [];

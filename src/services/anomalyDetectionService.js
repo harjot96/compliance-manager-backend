@@ -1,4 +1,4 @@
-const IsolationForest = require('isolation-forest');
+const { IsolationForest } = require('isolation-forest');
 
 class AnomalyDetectionService {
   constructor() {
@@ -258,6 +258,11 @@ class AnomalyDetectionService {
     }
     
     return true;
+  }
+
+  // Get all training jobs
+  getTrainingJobs() {
+    return Array.from(this.trainingJobs.values());
   }
 
   // Clear all models (useful for testing)

@@ -272,6 +272,16 @@ const chatCompletion = async (req, res, next) => {
   } catch (error) {
     console.error('OpenAI Chat Error:', error);
     
+    // Handle database connection errors
+    if (error.code === 'ECONNRESET || error.code === "ENOTFOUND" || error.code === "ETIMEDOUT" || error.code === "EADDRNOTAVAIL"') {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection error. Please try again in a few moments.',
+        error: 'Database connection issue',
+        suggestion: 'The system is experiencing temporary connectivity issues. Please retry your request.'
+      });
+    }
+    
     // Handle specific OpenAI errors
     if (error.status === 401) {
       return res.status(401).json({ 
@@ -381,6 +391,16 @@ const generateComplianceText = async (req, res, next) => {
 
   } catch (error) {
     console.error('OpenAI Compliance Text Error:', error);
+    
+    // Handle database connection errors
+    if (error.code === 'ECONNRESET || error.code === "ENOTFOUND" || error.code === "ETIMEDOUT" || error.code === "EADDRNOTAVAIL"') {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection error. Please try again in a few moments.',
+        error: 'Database connection issue',
+        suggestion: 'The system is experiencing temporary connectivity issues. Please retry your request.'
+      });
+    }
     
     if (error.status === 401) {
       return res.status(401).json({ 
@@ -509,6 +529,16 @@ const generateTemplate = async (req, res, next) => {
 
   } catch (error) {
     console.error('OpenAI Template Generation Error:', error);
+    
+    // Handle database connection errors
+    if (error.code === 'ECONNRESET || error.code === "ENOTFOUND" || error.code === "ETIMEDOUT" || error.code === "EADDRNOTAVAIL"') {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection error. Please try again in a few moments.',
+        error: 'Database connection issue',
+        suggestion: 'The system is experiencing temporary connectivity issues. Please retry your request.'
+      });
+    }
     
     if (error.status === 401) {
       return res.status(401).json({ 
@@ -644,6 +674,16 @@ const analyzeContent = async (req, res, next) => {
 
   } catch (error) {
     console.error('OpenAI Content Analysis Error:', error);
+    
+    // Handle database connection errors
+    if (error.code === 'ECONNRESET || error.code === "ENOTFOUND" || error.code === "ETIMEDOUT" || error.code === "EADDRNOTAVAIL"') {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database connection error. Please try again in a few moments.',
+        error: 'Database connection issue',
+        suggestion: 'The system is experiencing temporary connectivity issues. Please retry your request.'
+      });
+    }
     
     if (error.status === 401) {
       return res.status(401).json({ 
