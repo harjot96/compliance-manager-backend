@@ -57,7 +57,7 @@ class OpenAISetting {
     const key = crypto.scryptSync(secretKey, 'salt', 32);
     const iv = crypto.randomBytes(16);
     
-    const cipher = crypto.createCipher(algorithm, key);
+    const cipher = crypto.createCipheriv(algorithm, key, iv);
     let encrypted = cipher.update(apiKey, 'utf8', 'hex');
     encrypted += cipher.final('hex');
     
@@ -80,7 +80,7 @@ class OpenAISetting {
       const secretKey = process.env.ENCRYPTION_KEY || 'your-secret-encryption-key-32-chars-long';
       const key = crypto.scryptSync(secretKey, 'salt', 32);
       
-      const decipher = crypto.createDecipher(algorithm, key);
+      const decipher = crypto.createDecipheriv(algorithm, key, Buffer.from(encryptedData.iv, 'hex'));
       decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
       
       let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
