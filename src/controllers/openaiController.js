@@ -273,7 +273,7 @@ const chatCompletion = async (req, res, next) => {
     console.error('OpenAI Chat Error:', error);
     
     // Handle database connection errors
-    if (error.code === 'ECONNRESET || error.code === "ENOTFOUND" || error.code === "ETIMEDOUT" || error.code === "EADDRNOTAVAIL"') {
+    if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT' || error.code === 'EADDRNOTAVAIL') {
       return res.status(503).json({ 
         success: false, 
         message: 'Database connection error. Please try again in a few moments.',
@@ -393,7 +393,7 @@ const generateComplianceText = async (req, res, next) => {
     console.error('OpenAI Compliance Text Error:', error);
     
     // Handle database connection errors
-    if (error.code === 'ECONNRESET || error.code === "ENOTFOUND" || error.code === "ETIMEDOUT" || error.code === "EADDRNOTAVAIL"') {
+    if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT' || error.code === 'EADDRNOTAVAIL') {
       return res.status(503).json({ 
         success: false, 
         message: 'Database connection error. Please try again in a few moments.',
@@ -531,7 +531,7 @@ const generateTemplate = async (req, res, next) => {
     console.error('OpenAI Template Generation Error:', error);
     
     // Handle database connection errors
-    if (error.code === 'ECONNRESET || error.code === "ENOTFOUND" || error.code === "ETIMEDOUT" || error.code === "EADDRNOTAVAIL"') {
+    if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT' || error.code === 'EADDRNOTAVAIL') {
       return res.status(503).json({ 
         success: false, 
         message: 'Database connection error. Please try again in a few moments.',
@@ -676,7 +676,7 @@ const analyzeContent = async (req, res, next) => {
     console.error('OpenAI Content Analysis Error:', error);
     
     // Handle database connection errors
-    if (error.code === 'ECONNRESET || error.code === "ENOTFOUND" || error.code === "ETIMEDOUT" || error.code === "EADDRNOTAVAIL"') {
+    if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT' || error.code === 'EADDRNOTAVAIL') {
       return res.status(503).json({ 
         success: false, 
         message: 'Database connection error. Please try again in a few moments.',
