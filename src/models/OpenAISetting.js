@@ -89,6 +89,17 @@ class OpenAISetting {
       return decrypted;
     } catch (error) {
       console.error('❌ Error decrypting API key:', error);
+      
+      // Check if it's an encryption key mismatch
+      if (error.message.includes('Unsupported state or unable to authenticate data')) {
+        console.error('🔑 Encryption key mismatch detected. This usually means:');
+        console.error('   1. ENCRYPTION_KEY environment variable is not set in production');
+        console.error('   2. The API key was encrypted with a different key');
+        console.error('   3. The environment variable changed between encryption and decryption');
+        
+        throw new Error('Encryption key mismatch. Please reconfigure OpenAI settings with a new API key.');
+      }
+      
       throw new Error('Failed to decrypt API key');
     }
   }
@@ -237,6 +248,26 @@ class OpenAISetting {
       return { id: result.rows[0].id };
     } catch (error) {
       console.error('❌ Error deleting OpenAI settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear all OpenAI settings (for encryption key reset)
+   */
+  static async clearAllSettings() {
+    try {
+      const query = `
+        DELETE FROM openai_settings
+        RETURNING id;
+      `;
+      
+      const result = await pool.query(query);
+      
+      console.log(`✅ Cleared ${result.rows.length} OpenAI settings`);
+      return { clearedCount: result.rows.length };
+    } catch (error) {
+      console.error('❌ Error clearing OpenAI settings:', error);
       throw error;
     }
   }

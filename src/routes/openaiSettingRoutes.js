@@ -11,6 +11,9 @@ router.get('/settings/all', auth, openaiSettingController.getAllOpenAISettings);
 router.put('/settings/:id', auth, openaiSettingController.updateOpenAISettings);
 router.delete('/settings/:id', auth, openaiSettingController.deleteOpenAISettings);
 
+// Clear all OpenAI settings (Superadmin only) - for encryption key reset
+router.delete('/settings', requireSuperAdmin, openaiSettingController.clearAllOpenAISettings);
+
 // Test OpenAI API key (Any authenticated user)
 router.post('/test-api-key', auth, openaiSettingController.testOpenAIApiKey);
 

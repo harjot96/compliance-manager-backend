@@ -322,6 +322,37 @@ const getOpenAIApiKey = async (req, res, next) => {
   }
 };
 
+/**
+ * Clear all OpenAI settings (Admin only) - for encryption key reset
+ */
+const clearAllOpenAISettings = async (req, res, next) => {
+  try {
+    // Check if user is superadmin
+    if (!req.company || req.company.role !== 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Superadmin privileges required.'
+      });
+    }
+
+    const result = await OpenAISetting.clearAllSettings();
+    
+    res.json({
+      success: true,
+      message: 'OpenAI settings cleared successfully. You can now reconfigure with a new API key.',
+      data: result
+    });
+    
+  } catch (error) {
+    console.error('Clear All OpenAI Settings Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear OpenAI settings',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   saveOpenAISettings,
   getOpenAISettings,
@@ -329,5 +360,6 @@ module.exports = {
   updateOpenAISettings,
   deleteOpenAISettings,
   testOpenAIApiKey,
-  getOpenAIApiKey
+  getOpenAIApiKey,
+  clearAllOpenAISettings
 }; 
