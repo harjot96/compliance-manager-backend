@@ -96,7 +96,9 @@ const auth = require('../middleware/auth');
 
 // Profile and compliance routes (authenticated users)
 router.put('/profile/update', auth, companyController.updateProfile);
+router.patch('/profile', auth, companyController.updateProfile);
 router.put('/compliance/update', auth, companyController.updateComplianceDetails);
+router.patch('/compliance', auth, companyController.updateComplianceDetails);
 router.post('/compliance/upsert', auth, companyController.upsertComplianceDetails);
 router.get('/compliance/details', auth, companyController.getComplianceDetails);
 

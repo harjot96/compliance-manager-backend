@@ -62,6 +62,10 @@ class Company {
   }
 
   // Update company compliance details
+  static async updateComplianceDetails(id, complianceData) {
+    // This method is now a stub; compliance data is managed in company_compliance
+    return null;
+  }
 
   // Update company profile
   static async updateProfile(id, profileData, includeInactive = false) {
@@ -84,35 +88,6 @@ class Company {
       return null;
     }
     return new Company(result.rows[0]);
-  }
-
-  static async updateComplianceDetails(id, complianceData) {
-    try {
-      const CompanyCompliance = require("./CompanyCompliance");
-      
-      // Check if compliance record exists
-      let compliance = await CompanyCompliance.getByCompanyId(id);
-      
-      if (compliance) {
-        // Update existing record
-        compliance = await CompanyCompliance.update(id, complianceData);
-      } else {
-        // Create new record
-        compliance = await CompanyCompliance.create(id, complianceData);
-      }
-      
-      // Get updated company data
-      const company = await Company.findById(id);
-      if (!company) {
-        throw new Error("Company not found");
-      }
-      
-      // Return company with compliance data
-      return company;
-    } catch (error) {
-      console.error("Error updating compliance details:", error);
-      throw error;
-    }
   }
 
   // Activate or deactivate a company
