@@ -13,7 +13,7 @@ const getFrontendUrl = () => {
       return productionUrl;
     case 'development':
     default:
-      return 'http://localhost:3001';
+      return 'https://compliance-manager-frontend.onrender.com';
   }
 };
 
