@@ -24,7 +24,7 @@ const getFrontendCallbackUrl = () => {
     console.error('❌ ERROR: Production callback URL contains localhost. This is not allowed.');
     throw new Error('Production callback URL cannot contain localhost');
   }
-  return `${baseUrl}/xero-callback`;
+  return `${baseUrl}/redirecturl`;
 };
 
 const getFrontendRedirectUrl = () => {
