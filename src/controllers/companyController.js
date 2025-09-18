@@ -268,11 +268,241 @@ const getCompanyById = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Company not found' });
     }
     const compliance = await CompanyCompliance.getByCompanyId(companyId);
+    
+    // Get Xero settings for this company
+    const XeroSettings = require('../models/XeroSettings');
+    const xeroSettings = await XeroSettings.getByCompanyId(companyId);
+    
     res.status(200).json({
       success: true,
       data: {
         company: company.toJSON(),
-        compliance: compliance ? compliance.toJSON() : null
+        compliance: compliance ? compliance.toJSON() : null,
+        xeroSettings: xeroSettings ? {
+          id: xeroSettings.id,
+          clientId: xeroSettings.client_id,
+          redirectUri: xeroSettings.redirect_uri,
+          hasCredentials: !!(xeroSettings.username && xeroSettings.password),
+          hasTokens: !!(xeroSettings.access_token && xeroSettings.refresh_token),
+          createdAt: xeroSettings.created_at,
+          updatedAt: xeroSettings.updated_at
+        } : null
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Assign Xero client ID to a company (Super Admin)
+const assignXeroClientId = async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+    const { clientId, clientSecret, redirectUri } = req.body;
+
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({
+        success: false,
+        message: 'Client ID and Client Secret are required'
+      });
+    }
+
+    // Verify company exists
+    const company = await Company.findById(companyId, true);
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
+
+    // Create or update Xero settings for the company
+    const XeroSettings = require('../models/XeroSettings');
+    const settingsData = {
+      clientId: clientId.trim(),
+      clientSecret: clientSecret.trim(),
+      redirectUri: redirectUri?.trim() || null
+    };
+
+    const settings = await XeroSettings.createSettings(companyId, settingsData);
+
+    res.status(200).json({
+      success: true,
+      message: 'Xero client ID assigned successfully',
+      data: {
+        companyId: companyId,
+        companyName: company.companyName,
+        clientId: settings.client_id,
+        redirectUri: settings.redirect_uri,
+        createdAt: settings.created_at,
+        updatedAt: settings.updated_at
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Remove Xero client ID from a company (Super Admin)
+const removeXeroClientId = async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+
+    // Verify company exists
+    const company = await Company.findById(companyId, true);
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
+
+    // Remove Xero settings for the company
+    const XeroSettings = require('../models/XeroSettings');
+    const deletedSettings = await XeroSettings.deleteSettings(companyId);
+
+    if (!deletedSettings) {
+      return res.status(404).json({ success: false, message: 'No Xero settings found for this company' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Xero client ID removed successfully',
+      data: {
+        companyId: companyId,
+        companyName: company.companyName,
+        removedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Assign Xero client ID to ALL companies (Super Admin) - Single Click Solution
+const assignXeroClientIdToAllCompanies = async (req, res, next) => {
+  try {
+    const { clientId, clientSecret, redirectUri } = req.body;
+
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({
+        success: false,
+        message: 'Client ID and Client Secret are required'
+      });
+    }
+
+    // Get all companies (excluding superadmins)
+    const companies = await Company.getAllNoPagination();
+    
+    const results = [];
+    const errors = [];
+
+    for (const company of companies) {
+      try {
+        // Create or update Xero settings for each company
+        const XeroSettings = require('../models/XeroSettings');
+        const settingsData = {
+          clientId: clientId.trim(),
+          clientSecret: clientSecret.trim(),
+          redirectUri: redirectUri?.trim() || null
+        };
+
+        const settings = await XeroSettings.createSettings(company.id, settingsData);
+        results.push({
+          companyId: company.id,
+          companyName: company.companyName,
+          success: true
+        });
+      } catch (error) {
+        errors.push({
+          companyId: company.id,
+          companyName: company.companyName,
+          error: error.message
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Xero client ID assigned to ${results.length} companies`,
+      data: {
+        totalCompanies: companies.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get all companies with their Xero settings (Super Admin)
+const getAllCompaniesWithXeroSettings = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = (page - 1) * limit;
+
+    // Get total count (excluding superadmins)
+    const countResult = await Company.db.query("SELECT COUNT(*) FROM companies WHERE role != 'superadmin'");
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Get paginated companies with their Xero settings
+    const XeroSettings = require('../models/XeroSettings');
+    const query = `
+      SELECT 
+        c.id,
+        c.company_name,
+        c.email,
+        c.mobile_number,
+        c.country_code,
+        c.role,
+        c.is_active,
+        c.created_at,
+        c.updated_at,
+        xs.id as xero_settings_id,
+        xs.client_id,
+        xs.redirect_uri,
+        xs.username,
+        xs.password,
+        xs.access_token,
+        xs.refresh_token,
+        xs.token_expires_at,
+        xs.created_at as xero_created_at,
+        xs.updated_at as xero_updated_at
+      FROM companies c
+      LEFT JOIN xero_settings xs ON c.id = xs.company_id
+      WHERE c.role != 'superadmin'
+      ORDER BY c.created_at DESC
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await Company.db.query(query, [limit, offset]);
+    const companies = result.rows.map(row => ({
+      id: row.id,
+      companyName: row.company_name,
+      email: row.email,
+      mobileNumber: row.mobile_number,
+      countryCode: row.country_code,
+      role: row.role,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      xeroSettings: row.xero_settings_id ? {
+        id: row.xero_settings_id,
+        clientId: row.client_id,
+        redirectUri: row.redirect_uri,
+        hasCredentials: !!(row.username && row.password),
+        hasTokens: !!(row.access_token && row.refresh_token),
+        createdAt: row.xero_created_at,
+        updatedAt: row.xero_updated_at
+      } : null
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: companies,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -294,5 +524,9 @@ module.exports = {
   setCompanyActiveStatus, // Export activate/deactivate
   getCompanyById, // Export new getCompanyById
   getAllCompaniesNoPagination,
+  assignXeroClientId, // Export new Xero client ID management
+  removeXeroClientId, // Export new Xero client ID management
+  getAllCompaniesWithXeroSettings, // Export new function
+  assignXeroClientIdToAllCompanies, // Export bulk assignment function
 };
 

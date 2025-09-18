@@ -6,21 +6,56 @@ class XeroSettings {
    */
   static async createSettings(companyId, settings) {
     try {
-      const { clientId, clientSecret, redirectUri } = settings;
+      const { clientId, clientSecret, redirectUri, username, password, organizationName, accessToken } = settings;
       
-      const query = `
-        INSERT INTO xero_settings (company_id, client_id, client_secret, redirect_uri, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT (company_id) 
-        DO UPDATE SET 
-          client_id = EXCLUDED.client_id,
-          client_secret = EXCLUDED.client_secret,
-          redirect_uri = EXCLUDED.redirect_uri,
-          updated_at = CURRENT_TIMESTAMP
-        RETURNING *
-      `;
+      // Build dynamic query based on provided fields
+      let query, params;
       
-      const result = await db.query(query, [companyId, clientId, clientSecret, redirectUri]);
+      if (username && password) {
+        // Credential-based authentication
+        query = `
+          INSERT INTO xero_settings (company_id, username, password, organization_name, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT (company_id) 
+          DO UPDATE SET 
+            username = EXCLUDED.username,
+            password = EXCLUDED.password,
+            organization_name = EXCLUDED.organization_name,
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING *
+        `;
+        params = [companyId, username, password, organizationName];
+      } else if (accessToken) {
+        // Token-based authentication
+        query = `
+          INSERT INTO xero_settings (company_id, access_token, created_at, updated_at)
+          VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT (company_id) 
+          DO UPDATE SET 
+            access_token = EXCLUDED.access_token,
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING *
+        `;
+        params = [companyId, accessToken];
+      } else if (clientId && clientSecret) {
+        // OAuth-based authentication
+        query = `
+          INSERT INTO xero_settings (company_id, client_id, client_secret, redirect_uri, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT (company_id) 
+          DO UPDATE SET 
+            client_id = EXCLUDED.client_id,
+            client_secret = EXCLUDED.client_secret,
+            redirect_uri = EXCLUDED.redirect_uri,
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING *
+        `;
+        params = [companyId, clientId, clientSecret, redirectUri];
+      } else {
+        throw new Error('Invalid settings: must provide either credentials, token, or OAuth settings');
+      }
+      
+      const result = await db.query(query, params);
       return result.rows[0];
     } catch (error) {
       console.error('Error creating Xero settings:', error);
@@ -177,6 +212,47 @@ class XeroSettings {
       }
     } catch (error) {
       console.error('Error adding token columns:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add credential columns if they don't exist (for existing tables)
+   */
+  static async addCredentialColumns() {
+    try {
+      // Check if username column exists
+      const checkQuery = `
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'xero_settings' AND column_name = 'username'
+      `;
+      
+      const result = await db.query(checkQuery);
+      
+      if (result.rows.length === 0) {
+        // Add credential columns
+        await db.query(`
+          ALTER TABLE xero_settings 
+          ADD COLUMN username VARCHAR(255),
+          ADD COLUMN password VARCHAR(255),
+          ADD COLUMN organization_name VARCHAR(255)
+        `);
+        
+        // Make existing columns nullable since we now support multiple auth methods
+        await db.query(`
+          ALTER TABLE xero_settings 
+          ALTER COLUMN client_id DROP NOT NULL,
+          ALTER COLUMN client_secret DROP NOT NULL,
+          ALTER COLUMN redirect_uri DROP NOT NULL
+        `);
+        
+        console.log('Credential columns added to xero_settings table');
+      } else {
+        console.log('Credential columns already exist in xero_settings table');
+      }
+    } catch (error) {
+      console.error('Error adding credential columns:', error);
       throw error;
     }
   }

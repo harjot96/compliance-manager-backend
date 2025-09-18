@@ -1,0 +1,504 @@
+const sampleXeroData = {
+  organization: [
+    {
+      OrganisationID: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      Name: "Demo Company Ltd",
+      LegalName: "Demo Company Limited",
+      PaysTax: true,
+      Version: "AU",
+      OrganisationType: "COMPANY",
+      BaseCurrency: "AUD",
+      CountryCode: "AU",
+      IsDemoCompany: true,
+      OrganisationStatus: "ACTIVE",
+      RegistrationNumber: "123456789",
+      TaxNumber: "12345678901",
+      FinancialYearEndDay: 30,
+      FinancialYearEndMonth: 6,
+      SalesTaxBasis: "ACCRUALS",
+      SalesTaxPeriod: "QUARTERLY",
+      DefaultSalesTax: "GST on Income",
+      DefaultPurchasesTax: "GST on Expenses",
+      PeriodLockDate: "2024-06-30T00:00:00",
+      EndOfYearLockDate: "2024-06-30T00:00:00",
+      CreatedDateUTC: "2023-01-15T00:00:00Z",
+      Timezone: "AUSEASTERNSTANDARDTIME"
+    }
+  ],
+  
+  contacts: [
+    {
+      ContactID: "c1d2e3f4-a5b6-7890-1234-567890abcdef",
+      ContactStatus: "ACTIVE",
+      Name: "ABC Company Pty Ltd",
+      FirstName: "",
+      LastName: "",
+      EmailAddress: "accounts@abccompany.com.au",
+      ContactPersons: [],
+      BankAccountDetails: "",
+      TaxNumber: "98765432101",
+      AccountsReceivableTaxType: "GST on Income",
+      AccountsPayableTaxType: "GST on Expenses",
+      Addresses: [
+        {
+          AddressType: "STREET",
+          AddressLine1: "123 Business Street",
+          City: "Sydney",
+          Region: "NSW",
+          PostalCode: "2000",
+          Country: "Australia"
+        }
+      ],
+      Phones: [
+        {
+          PhoneType: "DEFAULT",
+          PhoneNumber: "02 9876 5432"
+        }
+      ],
+      IsSupplier: false,
+      IsCustomer: true,
+      DefaultCurrency: "AUD",
+      UpdatedDateUTC: "2024-09-15T10:30:00Z",
+      HasAttachments: false
+    },
+    {
+      ContactID: "d2e3f4g5-b6c7-8901-2345-678901bcdefg",
+      ContactStatus: "ACTIVE", 
+      Name: "XYZ Suppliers Ltd",
+      EmailAddress: "invoices@xyzsuppliers.com",
+      IsSupplier: true,
+      IsCustomer: false,
+      DefaultCurrency: "AUD",
+      UpdatedDateUTC: "2024-09-10T14:20:00Z"
+    }
+  ],
+
+  accounts: [
+    {
+      AccountID: "e3f4g5h6-c7d8-9012-3456-789012cdefgh",
+      Code: "200",
+      Name: "Sales",
+      Type: "REVENUE",
+      TaxType: "GST on Income",
+      Description: "Sales Revenue",
+      Class: "REVENUE",
+      SystemAccount: "",
+      EnablePaymentsToAccount: false,
+      ShowInExpenseClaims: false,
+      BankAccountNumber: "",
+      BankAccountType: "",
+      CurrencyCode: "AUD",
+      ReportingCode: "",
+      ReportingCodeName: "",
+      HasAttachments: false,
+      UpdatedDateUTC: "2024-01-15T00:00:00Z",
+      AddToWatchlist: false
+    },
+    {
+      AccountID: "f4g5h6i7-d8e9-0123-4567-890123defghi",
+      Code: "400",
+      Name: "Advertising",
+      Type: "EXPENSE",
+      TaxType: "GST on Expenses",
+      Description: "Advertising and Marketing",
+      Class: "EXPENSE",
+      EnablePaymentsToAccount: false,
+      ShowInExpenseClaims: true,
+      CurrencyCode: "AUD",
+      UpdatedDateUTC: "2024-01-15T00:00:00Z"
+    }
+  ],
+
+  invoices: [
+    {
+      InvoiceID: "g5h6i7j8-e9f0-1234-5678-901234efghij",
+      InvoiceNumber: "INV-2024-001",
+      Type: "ACCREC",
+      Contact: {
+        ContactID: "c1d2e3f4-a5b6-7890-1234-567890abcdef",
+        Name: "ABC Company Pty Ltd"
+      },
+      Date: "2024-09-15",
+      DueDate: "2024-10-15",
+      Status: "AUTHORISED",
+      LineAmountTypes: "Exclusive",
+      SubTotal: 1000.00,
+      TotalTax: 100.00,
+      Total: 1100.00,
+      UpdatedDateUTC: "2024-09-15T10:30:00Z",
+      CurrencyCode: "AUD",
+      InvoiceNumber: "INV-2024-001",
+      Reference: "Project Alpha",
+      BrandingThemeID: "h6i7j8k9-f0g1-2345-6789-012345fghijk",
+      HasAttachments: false,
+      LineItems: [
+        {
+          LineItemID: "i7j8k9l0-g1h2-3456-7890-123456ghijkl",
+          Description: "Consulting Services",
+          Quantity: 10,
+          UnitAmount: 100.00,
+          LineAmount: 1000.00,
+          AccountCode: "200",
+          TaxType: "GST on Income",
+          TaxAmount: 100.00
+        }
+      ]
+    },
+    {
+      InvoiceID: "j8k9l0m1-h2i3-4567-8901-234567hijklm",
+      InvoiceNumber: "INV-2024-002", 
+      Type: "ACCREC",
+      Contact: {
+        ContactID: "c1d2e3f4-a5b6-7890-1234-567890abcdef",
+        Name: "ABC Company Pty Ltd"
+      },
+      Date: "2024-09-18",
+      DueDate: "2024-10-18",
+      Status: "PAID",
+      SubTotal: 2500.00,
+      TotalTax: 250.00,
+      Total: 2750.00,
+      CurrencyCode: "AUD",
+      Reference: "Project Beta"
+    }
+  ],
+
+  items: [
+    {
+      ItemID: "k9l0m1n2-i3j4-5678-9012-345678ijklmn",
+      Code: "CONS-001",
+      Name: "Consulting Services",
+      Description: "Professional consulting services",
+      PurchaseDescription: "Consulting services purchased",
+      PurchaseDetails: {
+        UnitPrice: 100.00,
+        AccountCode: "400",
+        TaxType: "GST on Expenses"
+      },
+      SalesDetails: {
+        UnitPrice: 150.00,
+        AccountCode: "200", 
+        TaxType: "GST on Income"
+      },
+      IsTrackedAsInventory: false,
+      IsSold: true,
+      IsPurchased: true,
+      UpdatedDateUTC: "2024-01-15T00:00:00Z"
+    }
+  ],
+
+  'bank-transactions': [
+    {
+      BankTransactionID: "l0m1n2o3-j4k5-6789-0123-456789jklmno",
+      Type: "RECEIVE",
+      Contact: {
+        ContactID: "c1d2e3f4-a5b6-7890-1234-567890abcdef",
+        Name: "ABC Company Pty Ltd"
+      },
+      Date: "2024-09-15",
+      Status: "AUTHORISED",
+      LineAmountTypes: "Exclusive",
+      SubTotal: 1100.00,
+      TotalTax: 0.00,
+      Total: 1100.00,
+      UpdatedDateUTC: "2024-09-15T10:30:00Z",
+      CurrencyCode: "AUD",
+      BankAccount: {
+        AccountID: "m1n2o3p4-k5l6-7890-1234-567890klmnop",
+        Code: "090",
+        Name: "Business Bank Account"
+      },
+      Reference: "Payment for INV-2024-001",
+      IsReconciled: true
+    }
+  ],
+
+  'tax-rates': [
+    {
+      TaxType: "GST on Income",
+      TaxRate: 10.00,
+      Status: "ACTIVE",
+      ReportTaxType: "OUTPUT",
+      CanApplyToAssets: true,
+      CanApplyToEquity: true,
+      CanApplyToExpenses: false,
+      CanApplyToLiabilities: true,
+      CanApplyToRevenue: true,
+      DisplayTaxRate: 10.00,
+      EffectiveRate: 10.00
+    },
+    {
+      TaxType: "GST on Expenses", 
+      TaxRate: 10.00,
+      Status: "ACTIVE",
+      ReportTaxType: "INPUT",
+      CanApplyToAssets: true,
+      CanApplyToEquity: true,
+      CanApplyToExpenses: true,
+      CanApplyToLiabilities: true,
+      CanApplyToRevenue: false,
+      DisplayTaxRate: 10.00,
+      EffectiveRate: 10.00
+    }
+  ],
+
+  'receipts': [
+    {
+      ReceiptID: "n2o3p4q5-l6m7-8901-2345-678901mnopqr",
+      Date: "2024-09-10",
+      Contact: {
+        ContactID: "d2e3f4g5-b6c7-8901-2345-678901bcdefg",
+        Name: "XYZ Suppliers Ltd"
+      },
+      LineAmountTypes: "Exclusive",
+      SubTotal: 250.00,
+      TotalTax: 25.00,
+      Total: 275.00,
+      Status: "AUTHORISED",
+      ReceiptNumber: "RCP-2024-001",
+      Reference: "Office supplies",
+      UpdatedDateUTC: "2024-09-10T14:20:00Z",
+      CurrencyCode: "AUD"
+    }
+  ],
+
+  'purchase-orders': [
+    {
+      PurchaseOrderID: "o3p4q5r6-m7n8-9012-3456-789012nopqrs",
+      PurchaseOrderNumber: "PO-2024-001",
+      Date: "2024-09-12",
+      Contact: {
+        ContactID: "d2e3f4g5-b6c7-8901-2345-678901bcdefg",
+        Name: "XYZ Suppliers Ltd"
+      },
+      Status: "AUTHORISED",
+      LineAmountTypes: "Exclusive",
+      SubTotal: 500.00,
+      TotalTax: 50.00,
+      Total: 550.00,
+      UpdatedDateUTC: "2024-09-12T09:15:00Z",
+      CurrencyCode: "AUD",
+      Reference: "Monthly office supplies order"
+    }
+  ],
+
+  'quotes': [
+    {
+      QuoteID: "p4q5r6s7-n8o9-0123-4567-890123opqrst",
+      QuoteNumber: "QUO-2024-001",
+      Date: "2024-09-05",
+      Contact: {
+        ContactID: "c1d2e3f4-a5b6-7890-1234-567890abcdef",
+        Name: "ABC Company Pty Ltd"
+      },
+      Status: "SENT",
+      LineAmountTypes: "Exclusive",
+      SubTotal: 2000.00,
+      TotalTax: 200.00,
+      Total: 2200.00,
+      ExpiryDate: "2024-10-05",
+      UpdatedDateUTC: "2024-09-05T16:45:00Z",
+      CurrencyCode: "AUD",
+      Reference: "Website development project"
+    }
+  ],
+
+  'tracking-categories': [
+    {
+      TrackingCategoryID: "q5r6s7t8-o9p0-1234-5678-901234pqrstu",
+      Name: "Projects",
+      Status: "ACTIVE",
+      Options: [
+        {
+          TrackingOptionID: "r6s7t8u9-p0q1-2345-6789-012345qrstuv",
+          Name: "Project Alpha",
+          Status: "ACTIVE"
+        },
+        {
+          TrackingOptionID: "s7t8u9v0-q1r2-3456-7890-123456rstuvw",
+          Name: "Project Beta", 
+          Status: "ACTIVE"
+        }
+      ]
+    }
+  ],
+
+  'credit-notes': [
+    {
+      CreditNoteID: "t8u9v0w1-r2s3-4567-8901-234567stuvwx",
+      CreditNoteNumber: "CN-2024-001",
+      Type: "ACCRECCREDIT",
+      Contact: {
+        ContactID: "c1d2e3f4-a5b6-7890-1234-567890abcdef",
+        Name: "ABC Company Pty Ltd"
+      },
+      Date: "2024-09-08",
+      Status: "AUTHORISED",
+      LineAmountTypes: "Exclusive",
+      SubTotal: 100.00,
+      TotalTax: 10.00,
+      Total: 110.00,
+      UpdatedDateUTC: "2024-09-08T11:20:00Z",
+      CurrencyCode: "AUD",
+      Reference: "Refund for overpayment"
+    }
+  ],
+
+  'manual-journals': [
+    {
+      ManualJournalID: "u9v0w1x2-s3t4-5678-9012-345678tuvwxy",
+      Date: "2024-09-01",
+      Status: "POSTED",
+      LineAmountTypes: "Exclusive",
+      UpdatedDateUTC: "2024-09-01T09:00:00Z",
+      JournalLines: [
+        {
+          JournalLineID: "v0w1x2y3-t4u5-6789-0123-456789uvwxyz",
+          AccountCode: "200",
+          Description: "Month-end adjustment",
+          NetAmount: 500.00,
+          TaxAmount: 0.00,
+          GrossAmount: 500.00
+        }
+      ]
+    }
+  ],
+
+  'prepayments': [
+    {
+      PrepaymentID: "w1x2y3z4-u5v6-7890-1234-567890vwxyza",
+      Type: "RECEIVE-PREPAYMENT",
+      Contact: {
+        ContactID: "c1d2e3f4-a5b6-7890-1234-567890abcdef",
+        Name: "ABC Company Pty Ltd"
+      },
+      Date: "2024-09-01",
+      Status: "AUTHORISED",
+      LineAmountTypes: "Exclusive",
+      SubTotal: 1000.00,
+      TotalTax: 100.00,
+      Total: 1100.00,
+      UpdatedDateUTC: "2024-09-01T08:30:00Z",
+      CurrencyCode: "AUD",
+      Reference: "Advance payment for services"
+    }
+  ],
+
+  'overpayments': [
+    {
+      OverpaymentID: "x2y3z4a5-v6w7-8901-2345-678901wxyzab",
+      Type: "RECEIVE-OVERPAYMENT",
+      Contact: {
+        ContactID: "c1d2e3f4-a5b6-7890-1234-567890abcdef",
+        Name: "ABC Company Pty Ltd"
+      },
+      Date: "2024-09-03",
+      Status: "AUTHORISED",
+      LineAmountTypes: "Exclusive",
+      SubTotal: 50.00,
+      TotalTax: 5.00,
+      Total: 55.00,
+      UpdatedDateUTC: "2024-09-03T15:45:00Z",
+      CurrencyCode: "AUD",
+      Reference: "Customer overpayment"
+    }
+  ],
+
+  'reports': [
+    {
+      ReportID: "profit-loss",
+      ReportName: "Profit and Loss",
+      ReportType: "ProfitAndLoss",
+      ReportTitles: ["Profit and Loss", "Demo Company Ltd", "For the month ended 30 September 2024"],
+      ReportDate: "30 September 2024",
+      UpdatedDateUTC: "2024-09-30T23:59:59Z",
+      Rows: [
+        {
+          RowType: "Header",
+          Cells: [
+            { Value: "Account" },
+            { Value: "30 Sep 2024" }
+          ]
+        },
+        {
+          RowType: "Section",
+          Title: "Revenue",
+          Rows: [
+            {
+              RowType: "Row",
+              Cells: [
+                { Value: "Sales", Attributes: [{ Value: "200", Id: "account" }] },
+                { Value: "15000.00", Attributes: [{ Value: "15000.00", Id: "value" }] }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};
+
+// Demo endpoint to show sample data
+const getDemoData = async (req, res) => {
+  try {
+    const { dataType } = req.params;
+    
+    // Handle special case for all-basic-data
+    if (dataType === 'all-basic-data') {
+      const basicData = {
+        organization: sampleXeroData.organization,
+        contacts: sampleXeroData.contacts,
+        accounts: sampleXeroData.accounts,
+        invoices: sampleXeroData.invoices
+      };
+      
+      return res.json({
+        success: true,
+        message: 'Demo all-basic-data retrieved successfully',
+        data: basicData,
+        meta: {
+          tenantId: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+          dataType: 'all-basic-data',
+          count: Object.keys(basicData).length,
+          isDemoData: true,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+    
+    if (!sampleXeroData[dataType]) {
+      return res.status(400).json({
+        success: false,
+        message: `Demo data not available for: ${dataType}`,
+        availableTypes: Object.keys(sampleXeroData)
+      });
+    }
+
+    const data = sampleXeroData[dataType];
+    
+    res.json({
+      success: true,
+      message: `Demo ${dataType} data retrieved successfully`,
+      data: data,
+      meta: {
+        tenantId: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+        dataType: dataType,
+        count: Array.isArray(data) ? data.length : 1,
+        isDemoData: true,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Demo data error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve demo data',
+      error: error.message
+    });
+  }
+};
+
+module.exports = {
+  getDemoData
+};

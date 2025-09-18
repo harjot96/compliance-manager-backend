@@ -104,8 +104,14 @@ router.get('/compliance/details', auth, companyController.getComplianceDetails);
 
 // Super Admin routes
 router.get('/admin/all', auth, companyController.getAllCompanies);
+router.get('/admin/all-with-xero', auth, companyController.getAllCompaniesWithXeroSettings);
 router.get('/admin/:companyId/compliance', auth, companyController.getComplianceDetailsByCompanyId);
 router.put('/admin/:companyId/status', auth, companyController.setCompanyActiveStatus);
+
+// Xero Client ID Management routes (Super Admin)
+router.post('/admin/:companyId/xero-client', auth, companyController.assignXeroClientId);
+router.delete('/admin/:companyId/xero-client', auth, companyController.removeXeroClientId);
+router.post('/admin/xero-client-all', auth, companyController.assignXeroClientIdToAllCompanies);
 
 // Company management routes (Super Admin) - These must come after specific routes
 router.get('/:companyId', companyController.getCompanyById);

@@ -14,6 +14,9 @@ const complianceDeadlinesRoutes = require('./routes/complianceDeadlinesRoutes');
 const openaiRoutes = require('./routes/openaiRoutes');
 const openaiSettingRoutes = require('./routes/openaiSettingRoutes');
 const xeroRoutes = require('./routes/xeroRoutes');
+const cleanXeroRoutes = require('./routes/cleanXeroRoutes');
+const simpleXeroRoutes = require('./routes/simpleXeroRoutes');
+const xeroOAuth2Routes = require('./routes/xeroOAuth2Routes');
 const anomalyDetectionRoutes = require('./routes/anomalyDetectionRoutes');
 const templateRoutes = require('./routes/templateRoutes');
 const errorHandler = require('./middleware/errorHandler');
@@ -93,16 +96,19 @@ app.use(cors({
   exposedHeaders: ['Location', 'X-RateLimit-Limit', 'X-RateLimit-Remaining']
 }));
 
-// Rate limiting - more permissive in development
+// Rate limiting - very permissive in development for testing
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 2000 : 100, // more permissive in development
+  max: process.env.NODE_ENV === 'development' ? 10000 : 100, // much more permissive in development
   message: {
     success: false,
     message: 'Too many requests, please try again later.'
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  onLimitReached: (req, res, options) => {
+    console.log('🚫 Rate limit reached for IP:', req.ip, 'Path:', req.path);
+  }
 });
 app.use(limiter);
 
@@ -166,7 +172,14 @@ app.use('/api/cronjob-settings', cronjobSettingRoutes);
 app.use('/api/compliance-deadlines', complianceDeadlinesRoutes);
 app.use('/api/openai', openaiRoutes);
 app.use('/api/openai-admin', openaiSettingRoutes);
-app.use('/api/xero', xeroRoutes);
+// Proper OAuth2 Xero routes (main)
+app.use('/api/xero', xeroOAuth2Routes);
+// Demo routes for testing data visibility
+app.use('/api/xero', require('./routes/demoXeroRoutes'));
+// Legacy routes for backward compatibility
+app.use('/api/xero-legacy', xeroRoutes);
+app.use('/api/xero-clean', cleanXeroRoutes);
+app.use('/api/xero-simple', simpleXeroRoutes);
 app.use('/api/anomaly-detection', anomalyDetectionRoutes);
 app.use('/api/templates', templateRoutes);
 
@@ -184,6 +197,9 @@ app.get('/redirecturl', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Xero callback handler at root level (OAuth2)
+app.get('/xero-callback', require('./controllers/xeroOAuth2Controller').handleCallback);
 
 // 404 handler
 app.use('*', (req, res) => {
