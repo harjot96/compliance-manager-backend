@@ -67,7 +67,8 @@ app.use(cors({
           'https://compliance-manager-frontend.onrender.com',
           'https://compliance-manager-frontend.onrender.com/',
           'https://compliance-manager-frontend.onrender.com/redirecturl',
-          'https://compliance-manager-frontend.onrender.com/xero-callback'
+          'https://compliance-manager-frontend.onrender.com/xero-callback',
+          'https://compliance-manager-backend.onrender.com/api'
         ]
       : [
           'http://localhost:3001',

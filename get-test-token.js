@@ -7,8 +7,8 @@ async function getTestToken() {
 
   // Test credentials - you'll need to update these
   const testCredentials = {
-    email: 'test@example.com', // Update with actual email
-    password: 'password123'     // Update with actual password
+    email: 'xero-test@example.com', // Update with actual email
+    password: 'test123'     // Update with actual password
   };
 
   console.log('📋 Using test credentials:');
