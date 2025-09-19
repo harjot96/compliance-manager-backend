@@ -50,11 +50,16 @@ runAllMigrations().catch(error => {
 // Security middleware
 app.use(helmet());
 
-// CORS configuration - production-safe with localhost restrictions
+// CORS configuration - production-safe with proper preflight handling
 app.use(cors({
   origin: function (origin, callback) {
+    console.log('🔍 CORS Origin check:', origin);
+    
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log('✅ CORS: Allowing request with no origin');
+      return callback(null, true);
+    }
     
     // In production, never allow localhost origins
     if (process.env.NODE_ENV === 'production' && origin.includes('localhost')) {
@@ -64,37 +69,34 @@ app.use(cors({
     
     const allowedOrigins = process.env.NODE_ENV === 'production' 
       ? [
-          'https://compliance-manager-frontend.onrender.com',
-          'https://compliance-manager-frontend.onrender.com/',
-          'https://compliance-manager-frontend.onrender.com/redirecturl',
-          'https://compliance-manager-frontend.onrender.com/xero-callback',
-          'https://compliance-manager-backend.onrender.com/api'
+          'https://compliance-manager-frontend.onrender.com'
         ]
       : [
           'http://localhost:3001',
           'http://localhost:3000',
           'http://localhost:5173',
-          'https://compliance-manager-frontend.onrender.com',
-          'https://compliance-manager-frontend.onrender.com/',
-          'https://compliance-manager-frontend.onrender.com/redirecturl',
-          'https://compliance-manager-frontend.onrender.com/xero-callback'
+          'https://compliance-manager-frontend.onrender.com'
         ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ CORS: Origin allowed:', origin);
       callback(null, true);
     } else {
       console.log('⚠️ CORS blocked origin:', origin);
       if (process.env.NODE_ENV === 'production') {
         callback(new Error('Origin not allowed in production'), false);
       } else {
+        console.log('✅ CORS: Allowing in development mode');
         callback(null, true); // Allow all origins in development for debugging
       }
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Location', 'X-RateLimit-Limit', 'X-RateLimit-Remaining']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Location', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'],
+  preflightContinue: false,
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
 }));
 
 // Rate limiting - very permissive in development for testing
