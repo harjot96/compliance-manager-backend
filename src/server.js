@@ -19,6 +19,7 @@ const simpleXeroRoutes = require('./routes/simpleXeroRoutes');
 const xeroOAuth2Routes = require('./routes/xeroOAuth2Routes');
 const anomalyDetectionRoutes = require('./routes/anomalyDetectionRoutes');
 const templateRoutes = require('./routes/templateRoutes');
+const missingAttachmentRoutes = require('./routes/missingAttachmentRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const { runAllMigrations } = require('./utils/migrate');
 const { validateProductionUrls } = require('./config/environment');
@@ -119,6 +120,9 @@ app.use(limiter);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Static file serving for uploaded receipts
+app.use('/uploads', express.static('uploads'));
+
 // Compression middleware
 app.use(compression());
 
@@ -185,6 +189,7 @@ app.use('/api/xero-clean', cleanXeroRoutes);
 app.use('/api/xero-simple', simpleXeroRoutes);
 app.use('/api/anomaly-detection', anomalyDetectionRoutes);
 app.use('/api/templates', templateRoutes);
+app.use('/api/missing-attachments', missingAttachmentRoutes);
 
 // Redirect URL handler for frontend OAuth redirects
 app.get('/redirecturl', (req, res) => {

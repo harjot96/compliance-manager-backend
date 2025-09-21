@@ -150,6 +150,32 @@ class XeroSettings {
   }
 
   /**
+   * Find Xero settings by criteria (similar to Sequelize findOne)
+   */
+  static async findOne(where) {
+    try {
+      let query = 'SELECT * FROM xero_settings WHERE ';
+      const conditions = [];
+      const values = [];
+      let paramIndex = 1;
+
+      for (const [key, value] of Object.entries(where)) {
+        const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        conditions.push(`${dbKey} = $${paramIndex++}`);
+        values.push(value);
+      }
+
+      query += conditions.join(' AND ');
+
+      const result = await db.query(query, values);
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error finding Xero settings:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Create the xero_settings table
    */
   static async createTable() {

@@ -1,6 +1,8 @@
 const db = require('../config/database');
 const XeroSettings = require('../models/XeroSettings');
 const AnomalyDetection = require('../models/AnomalyDetection');
+const { UploadLink } = require('../models/UploadLink');
+const { MissingAttachmentConfig } = require('../models/MissingAttachmentConfig');
 
 const createTables = async () => {
   try {
@@ -199,6 +201,94 @@ const createTables = async () => {
     // Create index for faster lookups
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_xero_oauth_states_state ON xero_oauth_states(state)
+    `);
+
+    // Create missing_attachment_configs table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS missing_attachment_configs (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+        gst_threshold DECIMAL(10, 2) NOT NULL DEFAULT 82.50 CHECK (gst_threshold >= 0 AND gst_threshold <= 999999.99),
+        enabled BOOLEAN DEFAULT TRUE,
+        sms_enabled BOOLEAN DEFAULT TRUE,
+        email_enabled BOOLEAN DEFAULT FALSE,
+        phone_number VARCHAR(20),
+        email_address VARCHAR(255),
+        link_expiry_days INTEGER DEFAULT 7 CHECK (link_expiry_days >= 1 AND link_expiry_days <= 30),
+        max_daily_notifications INTEGER DEFAULT 50 CHECK (max_daily_notifications >= 1 AND max_daily_notifications <= 1000),
+        notification_frequency VARCHAR(20) DEFAULT 'immediate' CHECK (notification_frequency IN ('immediate', 'daily', 'weekly')),
+        last_processed_at TIMESTAMP,
+        total_notifications_sent INTEGER DEFAULT 0,
+        total_transactions_processed INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create upload_links table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS upload_links (
+        id SERIAL PRIMARY KEY,
+        link_id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+        token VARCHAR(64) NOT NULL,
+        transaction_id VARCHAR(255) NOT NULL,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        tenant_id VARCHAR(255) NOT NULL,
+        transaction_type VARCHAR(20) NOT NULL DEFAULT 'Invoice' CHECK (transaction_type IN ('Invoice', 'BankTransaction', 'Receipt', 'PurchaseOrder')),
+        phone_number VARCHAR(20),
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        used_at TIMESTAMP,
+        file_url TEXT,
+        file_name VARCHAR(255),
+        file_size INTEGER,
+        sms_sid VARCHAR(255),
+        sms_status VARCHAR(50),
+        resolved BOOLEAN DEFAULT FALSE,
+        resolved_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indexes for upload_links
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_upload_links_link_id ON upload_links(link_id);
+      CREATE INDEX IF NOT EXISTS idx_upload_links_company_id ON upload_links(company_id);
+      CREATE INDEX IF NOT EXISTS idx_upload_links_transaction_id ON upload_links(transaction_id);
+      CREATE INDEX IF NOT EXISTS idx_upload_links_expires_at ON upload_links(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_upload_links_used ON upload_links(used);
+    `);
+
+    // Add unique constraint to prevent duplicate active links for the same transaction
+    // Note: We'll handle this in application logic instead of database constraint
+    // due to PostgreSQL IMMUTABLE function requirements
+
+    // Create triggers for updated_at columns
+    await db.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.triggers 
+          WHERE trigger_name = 'update_missing_attachment_configs_updated_at'
+        ) THEN
+          CREATE TRIGGER update_missing_attachment_configs_updated_at
+            BEFORE UPDATE ON missing_attachment_configs
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+        
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.triggers 
+          WHERE trigger_name = 'update_upload_links_updated_at'
+        ) THEN
+          CREATE TRIGGER update_upload_links_updated_at
+            BEFORE UPDATE ON upload_links
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+      END
+      $$;
     `);
 
     console.log('Database tables created successfully');
