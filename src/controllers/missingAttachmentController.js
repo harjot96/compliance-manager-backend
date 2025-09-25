@@ -275,6 +275,19 @@ const getUploadPage = async (req, res) => {
         message: 'Invalid or expired upload link'
       });
     }
+
+    // SECURITY: Get company information for this upload link
+    const company = await Company.findById(uploadLink.companyId);
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Company not found for this upload link'
+      });
+    }
+
+    // Log access for audit trail
+    console.log(`🔒 Upload link accessed: ${linkId} for company ${uploadLink.companyId} (${company.companyName})`);
+    console.log(`🔒 Transaction: ${uploadLink.transactionType} ${uploadLink.transactionId}`);
     
     res.json({
       success: true,
@@ -282,7 +295,7 @@ const getUploadPage = async (req, res) => {
         linkId: uploadLink.linkId,
         transactionId: uploadLink.transactionId,
         transactionType: uploadLink.transactionType,
-        companyName: 'Company', // We'll get this from the company table later if needed
+        companyName: company.companyName,
         expiresAt: uploadLink.expiresAt,
         allowedFileTypes: ['image/jpeg', 'image/png', 'application/pdf'],
         maxFileSize: '10MB'

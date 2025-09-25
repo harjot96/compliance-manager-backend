@@ -184,6 +184,9 @@ const createTables = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='xero_settings' AND column_name='token_expires_at') THEN
           ALTER TABLE xero_settings ADD COLUMN token_expires_at TIMESTAMP;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='xero_settings' AND column_name='tenant_id') THEN
+          ALTER TABLE xero_settings ADD COLUMN tenant_id VARCHAR(255);
+        END IF;
       END
       $$;
     `);

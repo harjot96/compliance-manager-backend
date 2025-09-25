@@ -40,6 +40,14 @@ class UploadLink {
       used = false
     } = linkData;
 
+    // SECURITY: Validate required fields for data isolation
+    if (!companyId) {
+      throw new Error('Company ID is required for upload link creation');
+    }
+    if (!transactionId) {
+      throw new Error('Transaction ID is required for upload link creation');
+    }
+
     const query = `
       INSERT INTO upload_links (
         link_id, token, transaction_id, company_id, tenant_id, 
@@ -54,6 +62,8 @@ class UploadLink {
         linkId, token, transactionId, companyId, tenantId,
         transactionType, phoneNumber, expiresAt, used
       ]);
+      
+      console.log(`🔒 Upload link created for company ${companyId}: ${linkId}`);
       return new UploadLink(result.rows[0]);
     } catch (error) {
       console.error('Error creating upload link:', error);

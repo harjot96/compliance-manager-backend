@@ -6,6 +6,43 @@ const db = require('../config/database');
 const { getFrontendCallbackUrl, getFrontendRedirectUrl } = require('../config/environment');
 
 /**
+ * SECURITY: Get company's own tenant ID - NEVER allow tenant override
+ * This prevents companies from accessing other companies' Xero data
+ */
+const getCompanyTenantId = async (companyId, accessToken) => {
+  const xeroSettings = await XeroSettings.getByCompanyId(companyId);
+  if (!xeroSettings) {
+    throw new Error(`Xero settings not found for company ${companyId}`);
+  }
+
+  let tenantId = xeroSettings.tenant_id;
+  
+  if (!tenantId) {
+    // If no tenant ID in settings, get the company's authorized tenants
+    const connectionsResponse = await axios.get('https://api.xero.com/connections', {
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+    });
+    
+    if (connectionsResponse.data && connectionsResponse.data.length > 0) {
+      tenantId = connectionsResponse.data[0].tenantId;
+      console.log(`🔒 [Company ${companyId}] Auto-detected tenant: ${tenantId}`);
+      
+      // Save the tenant ID for future use
+      await db.query(
+        'UPDATE xero_settings SET tenant_id = $1 WHERE company_id = $2',
+        [tenantId, companyId]
+      );
+    } else {
+      throw new Error(`No Xero organizations found for company ${companyId}`);
+    }
+  }
+
+  // SECURITY: Log tenant access for audit trail
+  console.log(`🔒 TENANT ACCESS: Company ${companyId} accessing tenant ${tenantId}`);
+  return tenantId;
+};
+
+/**
  * Clear expired Xero tokens for a company
  */
 const clearExpiredTokens = async (companyId) => {
@@ -137,9 +174,8 @@ const buildAuthUrl = async (req, res) => {
     );
 
     // CRITICAL: redirect_uri must match EXACTLY what you registered + what you will use in token exchange
-    // Use environment-based redirect URI to ensure no localhost in production
-    const { getFrontendRedirectUrl } = require('../config/environment');
-    const redirectUri = getFrontendRedirectUrl();
+    // For development, always use the production redirect URI that matches Xero app config
+    const redirectUri = process.env.XERO_REDIRECT_URI || 'https://compliance-manager-frontend.onrender.com/redirecturl';
     
     // Log the redirect URI being used for debugging
     console.log('🔍 Using redirect URI:', redirectUri);
@@ -259,8 +295,9 @@ const handleCallback = async (req, res) => {
     }
 
     // Exchange code for tokens (IMPORTANT: same redirect_uri as used in auth step)
-    const { getFrontendRedirectUrl } = require('../config/environment');
-    const redirectUri = getFrontendRedirectUrl();
+    // For development, always use the production redirect URI that matches Xero app config
+    const redirectUri = process.env.XERO_REDIRECT_URI || 'https://compliance-manager-frontend.onrender.com/redirecturl';
+    console.log('🔧 Using redirect URI for token exchange:', redirectUri);
     
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -1048,28 +1085,8 @@ const getDashboardData = async (req, res) => {
     const accessToken = xeroSettings.access_token;
     if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
 
-    // Accept multiple query param names for tenant id to be resilient with the frontend
-    const rawTenantId =
-      req.query.tenantId ||
-      req.query.tenant_id ||
-      req.query.id ||
-      req.query.tenant ||
-      null;
-
-    let tenantId = rawTenantId;
-    if (!tenantId) {
-      const connectionsResponse = await axios.get('https://api.xero.com/connections', {
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
-      });
-      if (connectionsResponse.data && connectionsResponse.data.length > 0) {
-        tenantId = connectionsResponse.data[0].tenantId;
-        console.log('🔍 Using first available tenant:', tenantId);
-      } else {
-        return res.status(400).json({ success: false, message: 'No Xero organizations found. Please check your Xero account.' });
-      }
-    } else {
-      console.log('🔍 Using provided tenant ID:', tenantId);
-    }
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
 
     // Fetch core data (with short spacing to avoid rate limit)
     const invoices = await fetchXeroData(accessToken, tenantId, 'Invoices', { page: 1 }, companyId);
@@ -1193,19 +1210,8 @@ const getFinancialSummary = async (req, res) => {
     if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
 
     // Tenant
-    let tenantId = req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant || null;
-    if (!tenantId) {
-      const connectionsResponse = await axios.get('https://api.xero.com/connections', {
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        timeout: 10000 // 10 second timeout for connections
-      });
-      if (connectionsResponse.data && connectionsResponse.data.length > 0) {
-        tenantId = connectionsResponse.data[0].tenantId;
-        console.log('🔍 Using first available tenant for financial summary:', tenantId);
-      } else {
-        return res.status(400).json({ success: false, message: 'No Xero organizations found. Please check your Xero account.' });
-      }
-    }
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
 
     // Use Promise.allSettled with shorter timeouts for faster response
     const [invoicesResult, bankTransactionsResult] = await Promise.allSettled([
@@ -1348,20 +1354,8 @@ const getFinancialSummaryOptimized = async (req, res) => {
     const accessToken = xeroSettings.access_token;
     if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
 
-    // Tenant
-    let tenantId = req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant || null;
-    if (!tenantId) {
-      const connectionsResponse = await axios.get('https://api.xero.com/connections', {
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        timeout: 5000 // 5 second timeout for connections
-      });
-      if (connectionsResponse.data && connectionsResponse.data.length > 0) {
-        tenantId = connectionsResponse.data[0].tenantId;
-        console.log('🔍 Using first available tenant for financial summary:', tenantId);
-      } else {
-        return res.status(400).json({ success: false, message: 'No Xero organizations found. Please check your Xero account.' });
-      }
-    }
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
 
     // Use sequential requests with shorter timeouts for better reliability
     let invArr = [];
@@ -1540,7 +1534,8 @@ const getAllInvoices = async (req, res) => {
     if (!settings.access_token) return res.status(400).json({ success: false, message: 'Xero not connected. Please connect to Xero first.' });
 
     const { page = 1, pageSize = 50 } = req.query;
-    let tenantId = req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant;
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
     if (!tenantId) tenantId = await pickTenantIdOrFirst(settings.access_token);
 
     const invoices = await fetchXeroData(settings.access_token, tenantId, 'Invoices', {
@@ -1591,7 +1586,8 @@ const getAllContacts = async (req, res) => {
     if (!settings.access_token) return res.status(400).json({ success: false, message: 'Xero not connected. Please connect to Xero first.' });
 
     const { page = 1, pageSize = 50 } = req.query;
-    let tenantId = req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant;
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
     if (!tenantId) tenantId = await pickTenantIdOrFirst(settings.access_token);
 
     const contacts = await fetchXeroData(settings.access_token, tenantId, 'Contacts', {
@@ -1628,7 +1624,8 @@ const getAllBankTransactions = async (req, res) => {
     if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
 
     const { page = 1, pageSize = 50 } = req.query;
-    let tenantId = req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant;
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
     if (!tenantId) tenantId = await pickTenantIdOrFirst(accessToken);
 
     const bankTransactions = await fetchXeroData(accessToken, tenantId, 'BankTransactions', {
@@ -1655,7 +1652,8 @@ const getAllAccounts = async (req, res) => {
     const accessToken = xeroSettings.access_token;
     if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
 
-    let tenantId = await pickTenantIdOrFirst(accessToken, req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant);
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
     if (!tenantId) return res.status(400).json({ success: false, message: 'No Xero organizations found. Please check your Xero account.' });
 
     const accounts = await fetchXeroData(accessToken, tenantId, 'Accounts', {}, companyId);
@@ -1678,7 +1676,8 @@ const getAllItems = async (req, res) => {
     const accessToken = xeroSettings.access_token;
     if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
 
-    let tenantId = await pickTenantIdOrFirst(accessToken, req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant);
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
     if (!tenantId) return res.status(400).json({ success: false, message: 'No Xero organizations found. Please check your Xero account.' });
 
     const items = await fetchXeroData(accessToken, tenantId, 'Items', {}, companyId);
@@ -1701,7 +1700,8 @@ const getAllTaxRates = async (req, res) => {
     const accessToken = xeroSettings.access_token;
     if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
 
-    let tenantId = await pickTenantIdOrFirst(accessToken, req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant);
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
     if (!tenantId) return res.status(400).json({ success: false, message: 'No Xero organizations found. Please check your Xero account.' });
 
     const taxRates = await fetchXeroData(accessToken, tenantId, 'TaxRates', {}, companyId);
@@ -1724,7 +1724,8 @@ const getAllTrackingCategories = async (req, res) => {
     const accessToken = xeroSettings.access_token;
     if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
 
-    let tenantId = await pickTenantIdOrFirst(accessToken, req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant);
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
     if (!tenantId) return res.status(400).json({ success: false, message: 'No Xero organizations found. Please check your Xero account.' });
 
     const trackingCategories = await fetchXeroData(accessToken, tenantId, 'TrackingCategories', {}, companyId);
@@ -1913,7 +1914,8 @@ const getOrganizationDetails = async (req, res) => {
     const accessToken = xeroSettings.access_token;
     if (!accessToken) return res.status(400).json({ success: false, message: 'No access token found. Please reconnect to Xero.' });
 
-    let tenantId = await pickTenantIdOrFirst(accessToken, req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant);
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
     if (!tenantId) return res.status(400).json({ success: false, message: 'No Xero organizations found. Please check your Xero account.' });
 
     const organisation = await fetchXeroData(accessToken, tenantId, 'Organisation', {}, companyId);
@@ -2105,7 +2107,8 @@ const getAllReports = async (req, res) => {
     if (!reportID) return res.status(400).json({ success: false, message: 'Report ID is required' });
 
     // Handle tenant ID selection
-    let tenantId = req.query.tenantId || req.query.tenant_id || req.query.id || req.query.tenant;
+    // SECURITY: Get company's own tenant ID - prevent cross-company data access
+    const tenantId = await getCompanyTenantId(companyId, accessToken);
     if (!tenantId) {
       // Get first available tenant
       const tenantsResponse = await axios.get('https://api.xero.com/connections', {

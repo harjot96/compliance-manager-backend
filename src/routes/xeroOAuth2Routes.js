@@ -12,7 +12,10 @@ router.delete('/settings', auth, cleanXeroController.deleteSettings);
 // OAuth2 flow routes
 router.get('/auth-url', auth, xeroOAuth2Controller.getAuthUrl);
 router.get('/connect', auth, xeroOAuth2Controller.connectXero);
-router.get('/callback', xeroOAuth2Controller.handleCallback);
+router.post('/callback', xeroOAuth2Controller.handleCallback); // POST route for frontend API calls
+router.post('/callback-api', xeroOAuth2Controller.handleCallback); // Alternative POST route
+router.post('/oauth-callback', xeroOAuth2Controller.handleCallback); // Another alternative POST route
+router.get('/callback', xeroOAuth2Controller.handleCallback); // GET route for OAuth redirects
 
 // Connection management
 router.get('/status', auth, xeroOAuth2Controller.getConnectionStatus);

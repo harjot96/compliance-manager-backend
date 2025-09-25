@@ -190,6 +190,7 @@ class XeroSettings {
           access_token TEXT,
           refresh_token TEXT,
           token_expires_at TIMESTAMP,
+          tenant_id VARCHAR(255),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -238,6 +239,37 @@ class XeroSettings {
       }
     } catch (error) {
       console.error('Error adding token columns:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add tenant_id column if it doesn't exist (for existing tables)
+   */
+  static async addTenantIdColumn() {
+    try {
+      // Check if tenant_id column exists
+      const checkQuery = `
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'xero_settings' AND column_name = 'tenant_id'
+      `;
+      
+      const result = await db.query(checkQuery);
+      
+      if (result.rows.length === 0) {
+        // Add tenant_id column
+        await db.query(`
+          ALTER TABLE xero_settings 
+          ADD COLUMN tenant_id VARCHAR(255)
+        `);
+        
+        console.log('Tenant ID column added to xero_settings table');
+      } else {
+        console.log('Tenant ID column already exists in xero_settings table');
+      }
+    } catch (error) {
+      console.error('Error adding tenant_id column:', error);
       throw error;
     }
   }

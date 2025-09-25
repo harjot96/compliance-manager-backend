@@ -17,23 +17,60 @@ class MissingAttachmentService {
   /**
    * Detect missing attachments during Xero sync
    * @param {string} companyId - Company ID
-   * @param {string} tenantId - Xero tenant ID
+   * @param {string} tenantId - Xero tenant ID (optional - will use company's tenant)
    * @returns {Promise<Array>} Array of transactions missing attachments
    */
-  async detectMissingAttachments(companyId, tenantId) {
+  async detectMissingAttachments(companyId, tenantId = null) {
     try {
-      console.log(`🔍 Detecting missing attachments for company ${companyId}, tenant ${tenantId}`);
+      console.log(`🔍 Detecting missing attachments for company ${companyId}`);
       
-      // Get Xero access token for the company
-      const xeroSettings = await XeroSettings.findOne({ companyId });
-      if (!xeroSettings || !xeroSettings.access_token) {
-        // For demo purposes, return sample data when Xero is not connected
-        console.log('⚠️ Xero not connected - using demo data for missing attachments');
-        return this.generateDemoMissingAttachments(companyId, tenantId);
+      // SECURITY: Ensure we only fetch data for the specified company
+      if (!companyId) {
+        throw new Error('Company ID is required for data isolation');
       }
 
-      // Fetch all transactions from Xero
-      const transactions = await this.fetchAllTransactions(xeroSettings.access_token, tenantId);
+      // Get Xero settings specifically for this company
+      const xeroSettings = await XeroSettings.findOne({ companyId });
+      if (!xeroSettings) {
+        throw new Error(`Xero settings not found for company ${companyId}. Please configure Xero integration first.`);
+      }
+
+      // Check if we have a valid access token
+      if (!xeroSettings.access_token) {
+        throw new Error(`Xero access token not found for company ${companyId}. Please complete Xero OAuth connection first.`);
+      }
+
+      // SECURITY: Always use the company's own tenant ID from their settings
+      // Never allow override of tenant ID to prevent cross-company data access
+      const effectiveTenantId = xeroSettings.tenant_id;
+      if (!effectiveTenantId) {
+        throw new Error(`Xero tenant ID not found for company ${companyId}. Please reconnect to Xero.`);
+      }
+
+      // Log for audit trail
+      console.log(`🔒 Data isolation: Company ${companyId} accessing tenant ${effectiveTenantId}`);
+
+      // Check if token is expired and try to refresh if needed
+      if (xeroSettings.token_expires_at && new Date(xeroSettings.token_expires_at) <= new Date()) {
+        console.log(`🔄 Xero token expired for company ${companyId}, attempting to refresh...`);
+        try {
+          await this.refreshXeroToken(companyId, xeroSettings);
+          // Reload settings after refresh
+          const refreshedSettings = await XeroSettings.findOne({ companyId });
+          if (refreshedSettings && refreshedSettings.access_token) {
+            xeroSettings.access_token = refreshedSettings.access_token;
+            xeroSettings.tenant_id = refreshedSettings.tenant_id;
+          }
+        } catch (refreshError) {
+          console.error(`❌ Failed to refresh Xero token for company ${companyId}:`, refreshError);
+          throw new Error(`Xero token expired and refresh failed for company ${companyId}. Please reconnect to Xero.`);
+        }
+      }
+
+      console.log(`🔍 Fetching real Xero data for company ${companyId}, tenant ${effectiveTenantId}`);
+
+      // Fetch all transactions from Xero (company-specific)
+      const transactions = await this.fetchAllTransactions(xeroSettings.access_token, effectiveTenantId, companyId);
       
       // Filter transactions without attachments
       const missingAttachments = transactions.filter(transaction => {
@@ -64,37 +101,157 @@ class MissingAttachmentService {
    * Fetch all transactions from Xero (invoices, bank transactions, etc.)
    * @param {string} accessToken - Xero access token
    * @param {string} tenantId - Xero tenant ID
+   * @param {string} companyId - Company ID (for logging and security)
    * @returns {Promise<Array>} All transactions
    */
-  async fetchAllTransactions(accessToken, tenantId) {
+  async fetchAllTransactions(accessToken, tenantId, companyId) {
     const transactions = [];
     
     try {
-      // Fetch invoices
-      const invoices = await this.fetchXeroData(accessToken, tenantId, 'Invoices');
-      transactions.push(...invoices.map(inv => ({ ...inv, type: 'Invoice' })));
+      console.log(`📊 [Company ${companyId}] Fetching all transaction types from Xero for tenant ${tenantId}`);
 
-      // Fetch bank transactions
-      const bankTransactions = await this.fetchXeroData(accessToken, tenantId, 'BankTransactions');
-      transactions.push(...bankTransactions.map(bt => ({ ...bt, type: 'BankTransaction' })));
+      // Fetch invoices with pagination
+      console.log(`📄 [Company ${companyId}] Fetching invoices...`);
+      const invoices = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'Invoices', companyId);
+      transactions.push(...invoices.map(inv => ({ 
+        ...inv, 
+        type: 'Invoice',
+        TransactionID: inv.InvoiceID,
+        Amount: inv.Total,
+        TaxAmount: inv.TotalTax,
+        companyId // Add company ID to each transaction for security
+      })));
 
-      // Fetch receipts
-      const receipts = await this.fetchXeroData(accessToken, tenantId, 'Receipts');
-      transactions.push(...receipts.map(r => ({ ...r, type: 'Receipt' })));
+      // Fetch bank transactions with pagination
+      console.log(`🏦 [Company ${companyId}] Fetching bank transactions...`);
+      const bankTransactions = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'BankTransactions', companyId);
+      transactions.push(...bankTransactions.map(bt => ({ 
+        ...bt, 
+        type: 'BankTransaction',
+        TransactionID: bt.BankTransactionID,
+        Amount: bt.Total,
+        TaxAmount: bt.TotalTax,
+        companyId // Add company ID to each transaction for security
+      })));
 
-      // Fetch purchase orders
-      const purchaseOrders = await this.fetchXeroData(accessToken, tenantId, 'PurchaseOrders');
-      transactions.push(...purchaseOrders.map(po => ({ ...po, type: 'PurchaseOrder' })));
+      // Fetch receipts with pagination
+      console.log(`🧾 [Company ${companyId}] Fetching receipts...`);
+      const receipts = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'Receipts', companyId);
+      transactions.push(...receipts.map(r => ({ 
+        ...r, 
+        type: 'Receipt',
+        TransactionID: r.ReceiptID,
+        Amount: r.Total,
+        TaxAmount: r.TotalTax,
+        companyId // Add company ID to each transaction for security
+      })));
+
+      // Fetch purchase orders with pagination
+      console.log(`📋 [Company ${companyId}] Fetching purchase orders...`);
+      const purchaseOrders = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'PurchaseOrders', companyId);
+      transactions.push(...purchaseOrders.map(po => ({ 
+        ...po, 
+        type: 'PurchaseOrder',
+        TransactionID: po.PurchaseOrderID,
+        Amount: po.Total,
+        TaxAmount: po.TotalTax,
+        companyId // Add company ID to each transaction for security
+      })));
+
+      console.log(`📊 [Company ${companyId}] Total transactions fetched: ${transactions.length}`);
+      console.log(`📄 [Company ${companyId}] Invoices: ${invoices.length}`);
+      console.log(`🏦 [Company ${companyId}] Bank Transactions: ${bankTransactions.length}`);
+      console.log(`🧾 [Company ${companyId}] Receipts: ${receipts.length}`);
+      console.log(`📋 [Company ${companyId}] Purchase Orders: ${purchaseOrders.length}`);
 
       return transactions;
     } catch (error) {
       console.error('❌ Error fetching transactions from Xero:', error);
+      
+      // If it's a token error, provide helpful message
+      if (error.response?.status === 401) {
+        throw new Error('Xero access token is invalid or expired. Please reconnect to Xero.');
+      } else if (error.response?.status === 403) {
+        throw new Error('Insufficient permissions to access Xero data. Please check your Xero app permissions.');
+      } else if (error.response?.status === 404) {
+        throw new Error('Xero tenant not found. Please reconnect to Xero.');
+      }
+      
       throw error;
     }
   }
 
   /**
-   * Fetch data from Xero API
+   * Fetch data from Xero API with pagination support
+   * @param {string} accessToken - Xero access token
+   * @param {string} tenantId - Xero tenant ID
+   * @param {string} endpoint - Xero API endpoint
+   * @param {string} companyId - Company ID (for logging and security)
+   * @returns {Promise<Array>} Xero data
+   */
+  async fetchXeroDataWithPagination(accessToken, tenantId, endpoint, companyId) {
+    const allData = [];
+    let page = 1;
+    const pageSize = 100; // Xero's maximum page size
+    let hasMoreData = true;
+
+    try {
+      while (hasMoreData) {
+        console.log(`📄 [Company ${companyId}] Fetching ${endpoint} page ${page}...`);
+        
+        const response = await axios.get(`https://api.xero.com/api.xro/2.0/${endpoint}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Xero-tenant-id': tenantId,
+            'Accept': 'application/json'
+          },
+          params: {
+            page: page,
+            pageSize: pageSize
+          }
+        });
+
+        const data = response.data[endpoint] || [];
+        allData.push(...data);
+
+        // Check if we have more data
+        hasMoreData = data.length === pageSize;
+        page++;
+
+        // Safety check to prevent infinite loops
+        if (page > 50) {
+          console.warn(`⚠️ Reached maximum page limit (50) for ${endpoint}`);
+          break;
+        }
+
+        // Add a small delay to avoid rate limiting
+        if (hasMoreData) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+
+      console.log(`✅ [Company ${companyId}] Fetched ${allData.length} ${endpoint} from Xero (${page - 1} pages)`);
+      return allData;
+    } catch (error) {
+      console.error(`❌ Error fetching ${endpoint} from Xero:`, error.response?.data || error.message);
+      
+      // Handle specific Xero API errors
+      if (error.response?.status === 401) {
+        throw new Error(`Xero API authentication failed for ${endpoint}. Token may be expired.`);
+      } else if (error.response?.status === 403) {
+        throw new Error(`Insufficient permissions to access ${endpoint}. Check Xero app scopes.`);
+      } else if (error.response?.status === 429) {
+        throw new Error(`Xero API rate limit exceeded for ${endpoint}. Please try again later.`);
+      } else if (error.response?.status === 500) {
+        throw new Error(`Xero API server error for ${endpoint}. Please try again later.`);
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch data from Xero API (single page - legacy method)
    * @param {string} accessToken - Xero access token
    * @param {string} tenantId - Xero tenant ID
    * @param {string} endpoint - Xero API endpoint
@@ -359,8 +516,11 @@ Reply STOP to opt out.`;
         throw new Error('Xero not connected for this company');
       }
 
-      // For now, we'll assume one tenant. In production, you might need to handle multiple tenants
-      const tenantId = xeroSettings.tenant_id || 'default';
+      // Use the actual tenant ID from Xero settings
+      const tenantId = xeroSettings.tenant_id;
+      if (!tenantId) {
+        throw new Error('Xero tenant ID not found in settings. Please reconnect to Xero.');
+      }
       
       // Detect missing attachments
       const missingAttachments = await this.detectMissingAttachments(companyId, tenantId);
@@ -466,22 +626,35 @@ Reply STOP to opt out.`;
         throw new Error('Invalid or expired upload link');
       }
 
+      // SECURITY: Validate company ownership and log access
+      const company = await Company.findById(uploadLink.companyId);
+      if (!company) {
+        throw new Error('Company not found for this upload link');
+      }
+
+      console.log(`🔒 File upload for company ${uploadLink.companyId} (${company.companyName})`);
+      console.log(`🔒 Transaction: ${uploadLink.transactionType} ${uploadLink.transactionId}`);
+      console.log(`🔒 File: ${file.originalname} (${file.size} bytes)`);
+
       // Validate file
       this.validateFile(file);
 
-      // Generate presigned POST URL for storage
+      // Generate presigned POST URL for storage (company-isolated)
       const storageResult = await this.uploadToStorage(file, uploadLink);
 
-      // Attach file to Xero transaction
+      // Attach file to Xero transaction (using company's Xero credentials)
       await this.attachToXeroTransaction(uploadLink, storageResult);
 
       // Mark link as used and resolved
       await this.markLinkUsed(linkId);
 
+      console.log(`✅ [Company ${uploadLink.companyId}] File upload completed successfully`);
+
       return {
         success: true,
         message: 'Receipt uploaded successfully',
-        fileUrl: storageResult.fileUrl
+        fileUrl: storageResult.fileUrl,
+        companyId: uploadLink.companyId // Include for audit trail
       };
     } catch (error) {
       console.error('❌ Error processing file upload:', error);
@@ -547,28 +720,31 @@ Reply STOP to opt out.`;
       const fs = require('fs');
       const path = require('path');
       
-      // Create uploads directory if it doesn't exist
-      const uploadsDir = path.join(process.cwd(), 'uploads', 'receipts');
+      // SECURITY: Create company-isolated directory structure
+      const uploadsDir = path.join(process.cwd(), 'uploads', 'receipts', `company_${uploadLink.companyId}`);
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
       
-      // Generate unique filename
+      // Generate unique filename with company isolation
       const fileExtension = path.extname(file.originalname);
       const fileName = `${uploadLink.linkId}_${Date.now()}${fileExtension}`;
       const filePath = path.join(uploadsDir, fileName);
+
+      console.log(`🔒 [Company ${uploadLink.companyId}] Storing file in isolated directory: ${uploadsDir}`);
       
       // Save file to disk
       fs.writeFileSync(filePath, file.buffer);
       
       console.log('📤 File uploaded to storage:', fileName);
       
-      // Return file URL (in production this would be a CDN URL)
-      const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+      // Return file URL (company-isolated path)
+      const baseUrl = process.env.BACKEND_URL || 'http://localhost:3333';
       return {
-        fileUrl: `${baseUrl}/uploads/receipts/${fileName}`,
+        fileUrl: `${baseUrl}/uploads/receipts/company_${uploadLink.companyId}/${fileName}`,
         key: fileName,
-        filePath
+        filePath,
+        companyId: uploadLink.companyId // Include for security validation
       };
     } catch (error) {
       console.error('❌ Error uploading file to storage:', error);
@@ -721,9 +897,9 @@ Reply STOP to opt out.`;
             continue;
           }
 
-          // Get missing attachments for this company
-          const tenantId = 'default'; // You might need to get this from Xero settings
-          const missingAttachments = await this.detectMissingAttachments(config.companyId, tenantId);
+          // SECURITY: Get missing attachments only for this specific company
+          console.log(`📊 [Company ${config.companyId}] Generating daily digest...`);
+          const missingAttachments = await this.detectMissingAttachments(config.companyId);
           
           const summary = {
             totalTransactions: missingAttachments.length,
@@ -834,6 +1010,52 @@ Reply STOP to opt out.`;
 
     console.log(`📎 Generated ${transactionsWithRisk.length} demo transactions without attachments`);
     return transactionsWithRisk;
+  }
+
+  /**
+   * Refresh Xero access token using refresh token
+   * @param {string} companyId - Company ID
+   * @param {Object} xeroSettings - Current Xero settings
+   * @returns {Promise<Object>} Refreshed token data
+   */
+  async refreshXeroToken(companyId, xeroSettings) {
+    try {
+      if (!xeroSettings.refresh_token) {
+        throw new Error('No refresh token available');
+      }
+
+      console.log('🔄 Refreshing Xero access token...');
+
+      const response = await axios.post('https://identity.xero.com/connect/token', 
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: xeroSettings.refresh_token
+        }), {
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${xeroSettings.client_id}:${xeroSettings.client_secret}`).toString('base64')}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        }
+      );
+
+      const tokenData = response.data;
+      const expiresAt = new Date();
+      expiresAt.setSeconds(expiresAt.getSeconds() + tokenData.expires_in);
+
+      // Update the database with new tokens
+      await this.db.query(
+        `UPDATE xero_settings 
+         SET access_token = $1, refresh_token = $2, token_expires_at = $3, updated_at = NOW()
+         WHERE company_id = $4`,
+        [tokenData.access_token, tokenData.refresh_token, expiresAt, companyId]
+      );
+
+      console.log('✅ Xero token refreshed successfully');
+      return tokenData;
+    } catch (error) {
+      console.error('❌ Error refreshing Xero token:', error.response?.data || error.message);
+      throw error;
+    }
   }
 
   /**

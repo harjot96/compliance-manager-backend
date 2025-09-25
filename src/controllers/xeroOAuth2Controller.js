@@ -16,7 +16,7 @@ const db = require('../config/database');
 const XERO_CONFIG = {
   CLIENT_ID: process.env.XERO_CLIENT_ID,
   CLIENT_SECRET: process.env.XERO_CLIENT_SECRET,
-  REDIRECT_URI: process.env.XERO_REDIRECT_URI || `${process.env.FRONTEND_URL || 'http://localhost:3001'}/redirecturl`,
+  REDIRECT_URI: process.env.XERO_REDIRECT_URI || 'https://compliance-manager-frontend.onrender.com/redirecturl',
   SCOPES: [
     'offline_access',
     'openid',
@@ -110,13 +110,35 @@ const connectXero = async (req, res) => {
       const settings = result.rows[0];
       clientId = settings.client_id;
       clientSecret = settings.client_secret;
-      redirectUri = settings.redirect_uri || XERO_CONFIG.REDIRECT_URI;
+      
+      // Override redirect URI based on environment
+      const isDevelopment = process.env.NODE_ENV !== 'production';
+      if (isDevelopment) {
+        // For development, use production redirect URI since Xero app only has production URL registered
+        redirectUri = 'https://compliance-manager-frontend.onrender.com/redirecturl';
+        console.log('🔧 Development mode: Using production redirect URI (Xero app limitation)');
+      } else {
+        redirectUri = settings.redirect_uri || XERO_CONFIG.REDIRECT_URI;
+        console.log('🔧 Production mode: Using configured redirect URI');
+      }
+      
       console.log('✅ Using company-specific Xero credentials');
     } else {
       // Fallback to global environment variables
       clientId = XERO_CONFIG.CLIENT_ID;
       clientSecret = XERO_CONFIG.CLIENT_SECRET;
-      redirectUri = XERO_CONFIG.REDIRECT_URI;
+      
+      // Override redirect URI based on environment
+      const isDevelopment = process.env.NODE_ENV !== 'production';
+      if (isDevelopment) {
+        // For development, use production redirect URI since Xero app only has production URL registered
+        redirectUri = 'https://compliance-manager-frontend.onrender.com/redirecturl';
+        console.log('🔧 Development mode: Using production redirect URI (Xero app limitation - fallback)');
+      } else {
+        redirectUri = XERO_CONFIG.REDIRECT_URI;
+        console.log('🔧 Production mode: Using global redirect URI (fallback)');
+      }
+      
       console.log('⚠️  Using global environment variables (fallback)');
     }
 
@@ -175,9 +197,15 @@ const connectXero = async (req, res) => {
  */
 const handleCallback = async (req, res) => {
   try {
-    const { code, state, error: oauthError } = req.query;
+    // Handle both GET (query params) and POST (body) requests
+    const { code, state, error: oauthError } = req.method === 'GET' ? req.query : req.body;
     
     console.log('📞 Xero OAuth2 callback received');
+    console.log('🔧 Request method:', req.method);
+    console.log('🔧 Request URL:', req.url);
+    console.log('🔧 Request headers:', req.headers);
+    console.log('🔧 Request body:', req.body);
+    console.log('🔧 Request query:', req.query);
     console.log('🔐 State:', state);
     console.log('📋 Code:', code ? 'Present' : 'Missing');
     
@@ -219,13 +247,34 @@ const handleCallback = async (req, res) => {
       const settings = settingsResult.rows[0];
       clientId = settings.client_id;
       clientSecret = settings.client_secret;
-      redirectUri = settings.redirect_uri || XERO_CONFIG.REDIRECT_URI;
+      
+      // Override redirect URI based on environment
+      const isDevelopment = process.env.NODE_ENV !== 'production';
+      if (isDevelopment) {
+        // For development, use production redirect URI since Xero app only has production URL registered
+        redirectUri = 'https://compliance-manager-frontend.onrender.com/redirecturl';
+        console.log('🔧 Development mode: Using production redirect URI for token exchange (Xero app limitation)');
+      } else {
+        redirectUri = settings.redirect_uri || XERO_CONFIG.REDIRECT_URI;
+        console.log('🔧 Production mode: Using configured redirect URI for token exchange');
+      }
+      
       console.log('✅ Using company-specific credentials for token exchange');
     } else {
       // Fallback to global environment variables
       clientId = XERO_CONFIG.CLIENT_ID;
       clientSecret = XERO_CONFIG.CLIENT_SECRET;
-      redirectUri = XERO_CONFIG.REDIRECT_URI;
+      
+      // Override redirect URI based on environment
+      const isDevelopment = process.env.NODE_ENV !== 'production';
+      if (isDevelopment) {
+        // For development, use production redirect URI since Xero app only has production URL registered
+        redirectUri = 'https://compliance-manager-frontend.onrender.com/redirecturl';
+        console.log('🔧 Development mode: Using production redirect URI for token exchange (Xero app limitation - fallback)');
+      } else {
+        redirectUri = XERO_CONFIG.REDIRECT_URI;
+        console.log('🔧 Production mode: Using global redirect URI for token exchange (fallback)');
+      }
       console.log('⚠️  Using global credentials for token exchange (fallback)');
     }
 
@@ -313,22 +362,47 @@ const handleCallback = async (req, res) => {
     console.log('💾 Tokens saved to database');
     console.log('🧹 OAuth state cleaned up');
 
-    // Redirect back to frontend with success and data loading trigger
-    const baseUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero`;
-    const params = new URLSearchParams({
-      success: 'connected',
-      autoload: 'true',
-      tenant_count: tenants.length.toString()
-    });
-    
-    if (tenants.length > 1) {
-      params.append('multiple_tenants', 'true');
+    // Handle response based on request method
+    if (req.method === 'GET') {
+      // GET request - redirect to frontend (OAuth redirect flow)
+      const baseUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero`;
+      const params = new URLSearchParams({
+        success: 'connected',
+        autoload: 'true',
+        tenant_count: tenants.length.toString()
+      });
+      
+      if (tenants.length > 1) {
+        params.append('multiple_tenants', 'true');
+      }
+      
+      const redirectUrl = `${baseUrl}?${params.toString()}`;
+      
+      console.log('🔄 Redirecting to frontend with auto-load trigger:', redirectUrl);
+      res.redirect(redirectUrl);
+    } else {
+      // POST request - return JSON (API call from frontend)
+      console.log('📤 Returning JSON response for POST callback');
+      res.json({
+        success: true,
+        data: {
+          tokens: {
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            expiresIn: tokens.expires_in,
+            tokenType: tokens.token_type || 'Bearer'
+          },
+          tenants: tenants.map(t => ({
+            id: t.tenantId,
+            name: t.tenantName || t.organisationName,
+            organizationName: t.organisationName,
+            tenantName: t.tenantName,
+            tenantId: t.tenantId
+          })),
+          companyId: companyId.toString()
+        }
+      });
     }
-    
-    const redirectUrl = `${baseUrl}?${params.toString()}`;
-    
-    console.log('🔄 Redirecting to frontend with auto-load trigger:', redirectUrl);
-    res.redirect(redirectUrl);
 
   } catch (error) {
     console.error('❌ OAuth2 Callback Error:', error);
@@ -340,7 +414,15 @@ const handleCallback = async (req, res) => {
       errorMessage = 'invalid_client';
     }
     
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero?error=${errorMessage}`);
+    if (req.method === 'GET') {
+      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero?error=${errorMessage}`);
+    } else {
+      res.status(400).json({
+        success: false,
+        message: errorMessage,
+        error: error.message
+      });
+    }
   }
 };
 

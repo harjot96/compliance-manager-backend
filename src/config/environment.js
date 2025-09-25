@@ -13,7 +13,10 @@ const getFrontendUrl = () => {
       return productionUrl;
     case 'development':
     default:
-      return 'https://compliance-manager-frontend.onrender.com';
+      // For development, use localhost if available, otherwise fallback to production
+      const devUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+      console.log(`🔧 Development mode: Using frontend URL: ${devUrl}`);
+      return devUrl;
   }
 };
 
