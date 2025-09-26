@@ -17,6 +17,7 @@ const xeroRoutes = require('./routes/xeroRoutes');
 const cleanXeroRoutes = require('./routes/cleanXeroRoutes');
 const simpleXeroRoutes = require('./routes/simpleXeroRoutes');
 const xeroOAuth2Routes = require('./routes/xeroOAuth2Routes');
+const plugAndPlayXeroRoutes = require('./routes/plugAndPlayXeroRoutes');
 const anomalyDetectionRoutes = require('./routes/anomalyDetectionRoutes');
 const templateRoutes = require('./routes/templateRoutes');
 const missingAttachmentRoutes = require('./routes/missingAttachmentRoutes');
@@ -181,6 +182,8 @@ app.use('/api/openai', openaiRoutes);
 app.use('/api/openai-admin', openaiSettingRoutes);
 // Proper OAuth2 Xero routes (main)
 app.use('/api/xero', xeroOAuth2Routes);
+// Plug-and-play Xero integration routes
+app.use('/api/xero-plug-play', plugAndPlayXeroRoutes);
 // Demo routes for testing data visibility
 app.use('/api/xero', require('./routes/demoXeroRoutes'));
 // Legacy routes for backward compatibility

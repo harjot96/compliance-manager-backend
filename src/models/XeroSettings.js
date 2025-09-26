@@ -314,6 +314,124 @@ class XeroSettings {
       throw error;
     }
   }
+
+  /**
+   * Sequelize-style upsert method
+   */
+  static async upsert(data) {
+    try {
+      const { companyId, clientId, clientSecret, redirectUri, accessToken, refreshToken, tokenExpiresAt, tenants, updatedAt } = data;
+      
+      const query = `
+        INSERT INTO xero_settings (company_id, client_id, client_secret, redirect_uri, access_token, refresh_token, token_expires_at, tenants, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9)
+        ON CONFLICT (company_id) 
+        DO UPDATE SET 
+          client_id = EXCLUDED.client_id,
+          client_secret = EXCLUDED.client_secret,
+          redirect_uri = EXCLUDED.redirect_uri,
+          access_token = EXCLUDED.access_token,
+          refresh_token = EXCLUDED.refresh_token,
+          token_expires_at = EXCLUDED.token_expires_at,
+          tenants = EXCLUDED.tenants,
+          updated_at = EXCLUDED.updated_at
+        RETURNING *
+      `;
+      
+      const result = await db.query(query, [companyId, clientId, clientSecret, redirectUri, accessToken, refreshToken, tokenExpiresAt, tenants, updatedAt]);
+      const row = result.rows[0];
+      
+      // Return in Sequelize format
+      return [row, !row.id]; // [instance, created]
+    } catch (error) {
+      console.error('Error upserting Xero settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sequelize-style destroy method
+   */
+  static async destroy(options) {
+    try {
+      const { where } = options;
+      let query = 'DELETE FROM xero_settings WHERE ';
+      const conditions = [];
+      const values = [];
+      let paramIndex = 1;
+
+      for (const [key, value] of Object.entries(where)) {
+        const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        conditions.push(`${dbKey} = $${paramIndex++}`);
+        values.push(value);
+      }
+
+      query += conditions.join(' AND ');
+
+      const result = await db.query(query, values);
+      return result.rowCount; // Return number of deleted rows
+    } catch (error) {
+      console.error('Error destroying Xero settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sequelize-style findOne with attributes
+   */
+  static async findOne(options) {
+    try {
+      const { where, attributes } = options;
+      let query = 'SELECT ';
+      
+      if (attributes && attributes.exclude) {
+        // Get all columns except excluded ones
+        const allColumns = ['id', 'company_id', 'client_id', 'client_secret', 'redirect_uri', 'access_token', 'refresh_token', 'token_expires_at', 'tenant_id', 'tenants', 'created_at', 'updated_at'];
+        const excludedColumns = attributes.exclude.map(col => col.replace(/([A-Z])/g, '_$1').toLowerCase());
+        const selectedColumns = allColumns.filter(col => !excludedColumns.includes(col));
+        query += selectedColumns.join(', ');
+      } else {
+        query += '*';
+      }
+      
+      query += ' FROM xero_settings WHERE ';
+      const conditions = [];
+      const values = [];
+      let paramIndex = 1;
+
+      for (const [key, value] of Object.entries(where)) {
+        const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        conditions.push(`${dbKey} = $${paramIndex++}`);
+        values.push(value);
+      }
+
+      query += conditions.join(' AND ');
+
+      const result = await db.query(query, values);
+      const row = result.rows[0];
+      
+      if (!row) return null;
+      
+      // Add Sequelize-style methods
+      row.toJSON = () => row;
+      row.update = async (updateData) => {
+        const updateQuery = `
+          UPDATE xero_settings 
+          SET ${Object.keys(updateData).map((key, index) => `${key.replace(/([A-Z])/g, '_$1').toLowerCase()} = $${index + 2}`).join(', ')}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+          RETURNING *
+        `;
+        const updateValues = [row.id, ...Object.values(updateData)];
+        const updateResult = await db.query(updateQuery, updateValues);
+        return updateResult.rows[0];
+      };
+      
+      return row;
+    } catch (error) {
+      console.error('Error finding Xero settings:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = XeroSettings; 
