@@ -249,6 +249,32 @@ class PlugAndPlayXeroController {
         clientId = settings.client_id;
         clientSecret = settings.client_secret;
         
+        console.log('🔍 Found Xero settings in database');
+        console.log('🔧 Client ID from database:', clientId ? `${clientId.substring(0, 8)}...` : 'NOT SET');
+        console.log('🔧 Client Secret from database:', clientSecret ? 'SET' : 'NOT SET');
+        
+        // Validate client ID is properly set
+        if (!clientId || clientId.trim() === '' || clientId === 'null' || clientId === 'undefined') {
+          console.error('❌ Client ID is not properly configured:', clientId);
+          return res.status(400).json({
+            success: false,
+            message: 'Xero Client ID is not configured. Please ask your administrator to configure Xero client credentials for your company.',
+            error: 'CLIENT_ID_NOT_SET',
+            details: 'The Xero Client ID is missing or invalid in the database settings.'
+          });
+        }
+        
+        // Validate client secret is properly set
+        if (!clientSecret || clientSecret.trim() === '' || clientSecret === 'null' || clientSecret === 'undefined') {
+          console.error('❌ Client Secret is not properly configured');
+          return res.status(400).json({
+            success: false,
+            message: 'Xero Client Secret is not configured. Please ask your administrator to configure Xero client credentials for your company.',
+            error: 'CLIENT_SECRET_NOT_SET',
+            details: 'The Xero Client Secret is missing or invalid in the database settings.'
+          });
+        }
+        
         // Override redirect URI based on environment (same logic as existing integration)
         const isDevelopment = process.env.NODE_ENV !== 'production';
         if (isDevelopment) {
@@ -261,18 +287,14 @@ class PlugAndPlayXeroController {
         }
         
         console.log('✅ Using company-specific Xero credentials (saved by admin)');
-        console.log('🔧 Client ID:', clientId);
+        console.log('🔧 Client ID validated and ready for OAuth');
       } else {
+        console.error('❌ No Xero settings found in database for company:', companyId);
         return res.status(400).json({
           success: false,
-          message: 'Xero settings not configured. Please ask your administrator to configure Xero client credentials for your company.'
-        });
-      }
-
-      if (!clientId || !clientSecret) {
-        return res.status(400).json({
-          success: false,
-          message: 'Xero settings not configured. Please ask your administrator to configure Xero client credentials for your company.'
+          message: 'Xero settings not found. Please ask your administrator to configure Xero client credentials for your company.',
+          error: 'NO_XERO_SETTINGS',
+          details: 'No Xero configuration found in database for this company.'
         });
       }
 
