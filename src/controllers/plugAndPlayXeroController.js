@@ -256,12 +256,21 @@ class PlugAndPlayXeroController {
         'accounting.reports.read'
       ].join(' ');
 
+      // Use the state parameter from frontend if provided, otherwise generate new one
+      const oauthState = state && state.trim() !== '' ? state : this.generateState();
+      
+      console.log('🔧 OAuth state handling:', {
+        frontendState: state ? `${state.substring(0, 8)}...` : 'NOT PROVIDED',
+        finalState: `${oauthState.substring(0, 8)}...`,
+        stateSource: state && state.trim() !== '' ? 'FRONTEND' : 'BACKEND_GENERATED'
+      });
+      
       const params = new URLSearchParams({
         response_type: 'code',
         client_id: clientId,
         redirect_uri: redirect_uri || redirectUri,
         scope: scopes,
-        state: state || this.generateState()
+        state: oauthState
       });
 
       const authUrl = `${this.xeroAuthUrl}?${params.toString()}`;
@@ -294,6 +303,23 @@ class PlugAndPlayXeroController {
         return res.status(400).json({
           success: false,
           message: 'Authorization code is required'
+        });
+      }
+
+      // Validate state parameter for OAuth security
+      console.log('🔧 OAuth callback received:', {
+        hasCode: !!code,
+        hasState: !!state,
+        stateValue: state ? `${state.substring(0, 8)}...` : 'MISSING',
+        companyId: companyId
+      });
+      
+      if (!state || state.trim() === '') {
+        console.error('❌ OAuth state parameter missing or empty');
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid OAuth state parameter',
+          error: 'INVALID_STATE'
         });
       }
 
