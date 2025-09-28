@@ -1109,8 +1109,6 @@ class PlugAndPlayXeroController {
 
 }
 
-module.exports = new PlugAndPlayXeroController();
-
 // Internal function to get connection status
 async function getConnectionStatusInternal(companyId) {
   try {

@@ -22,107 +22,107 @@ router.get('/status', plugAndPlayXeroController.getConnectionStatus.bind(plugAnd
 
 // OAuth Flow Routes
 router.get('/connect', plugAndPlayXeroController.getAuthUrl.bind(plugAndPlayXeroController));
-router.post('/oauth-callback', plugAndPlayXeroController.handleCallback);
-router.post('/refresh-token', plugAndPlayXeroController.refreshToken);
+router.post('/oauth-callback', plugAndPlayXeroController.handleCallback.bind(plugAndPlayXeroController));
+router.post('/refresh-token', plugAndPlayXeroController.refreshToken.bind(plugAndPlayXeroController));
 
 // Data Access Routes
-router.get('/:resourceType', plugAndPlayXeroController.loadData);
+router.get('/:resourceType', plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 // Specific Data Routes (for convenience)
 router.get('/invoices', (req, res, next) => {
   req.query.resourceType = 'invoices';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/contacts', (req, res, next) => {
   req.query.resourceType = 'contacts';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/accounts', (req, res, next) => {
   req.query.resourceType = 'accounts';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/bank-transactions', (req, res, next) => {
   req.query.resourceType = 'bank-transactions';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/organization', (req, res, next) => {
   req.query.resourceType = 'organization';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/items', (req, res, next) => {
   req.query.resourceType = 'items';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/tax-rates', (req, res, next) => {
   req.query.resourceType = 'tax-rates';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/tracking-categories', (req, res, next) => {
   req.query.resourceType = 'tracking-categories';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/purchase-orders', (req, res, next) => {
   req.query.resourceType = 'purchase-orders';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/receipts', (req, res, next) => {
   req.query.resourceType = 'receipts';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/credit-notes', (req, res, next) => {
   req.query.resourceType = 'credit-notes';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/manual-journals', (req, res, next) => {
   req.query.resourceType = 'manual-journals';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/prepayments', (req, res, next) => {
   req.query.resourceType = 'prepayments';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/overpayments', (req, res, next) => {
   req.query.resourceType = 'overpayments';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/quotes', (req, res, next) => {
   req.query.resourceType = 'quotes';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 // Special Data Routes
 router.get('/financial-summary', (req, res, next) => {
   req.query.resourceType = 'financial-summary';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 router.get('/dashboard-data', (req, res, next) => {
   req.query.resourceType = 'dashboard-data';
   next();
-}, plugAndPlayXeroController.loadData);
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
 // Health Check Route
-router.get('/health', plugAndPlayXeroController.healthCheck);
+router.get('/health', plugAndPlayXeroController.healthCheck.bind(plugAndPlayXeroController));
 
 // Demo Data Routes (for testing)
-router.get('/demo/:resourceType', plugAndPlayXeroController.getDemoData);
+router.get('/demo/:resourceType', plugAndPlayXeroController.getDemoData.bind(plugAndPlayXeroController));
 
 // Super Admin Routes (require super admin privileges)
-router.post('/admin/auto-link-all', plugAndPlayXeroController.autoLinkToAllCompanies);
-router.get('/admin/companies-status', plugAndPlayXeroController.getAllCompaniesXeroStatus);
+router.post('/admin/auto-link-all', plugAndPlayXeroController.autoLinkToAllCompanies.bind(plugAndPlayXeroController));
+router.get('/admin/companies-status', plugAndPlayXeroController.getAllCompaniesXeroStatus.bind(plugAndPlayXeroController));
 
 module.exports = router;
