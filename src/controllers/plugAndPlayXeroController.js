@@ -43,10 +43,12 @@ class PlugAndPlayXeroController {
     try {
       const companyId = req.company.id;
       
-      const settings = await XeroSettings.findOne({ 
-        where: { companyId },
-        attributes: { exclude: ['clientSecret', 'accessToken', 'refreshToken'] }
-      });
+      const result = await db.query(
+        'SELECT id, company_id, client_id, client_secret, redirect_uri, created_at, updated_at FROM xero_settings WHERE company_id = $1',
+        [companyId]
+      );
+
+      const settings = result.rows.length > 0 ? result.rows[0] : null;
 
       if (!settings) {
         return res.status(404).json({
@@ -56,13 +58,13 @@ class PlugAndPlayXeroController {
       }
 
       // Get connection status
-      const connectionStatus = await this.getConnectionStatusInternal(companyId);
+      const connectionStatus = await getConnectionStatusInternal(companyId);
 
       res.json({
         success: true,
         message: 'Xero settings retrieved successfully',
         data: {
-          ...settings.toJSON(),
+          ...settings,
           ...connectionStatus
         }
       });
@@ -160,7 +162,7 @@ class PlugAndPlayXeroController {
   async getConnectionStatus(req, res) {
     try {
       const companyId = req.company.id;
-      const status = await this.getConnectionStatusInternal(companyId);
+      const status = await getConnectionStatusInternal(companyId);
 
       res.json({
         success: true,
@@ -174,58 +176,6 @@ class PlugAndPlayXeroController {
         message: 'Failed to get connection status',
         error: error.message
       });
-    }
-  }
-
-  // Internal method to get connection status
-  async getConnectionStatusInternal(companyId) {
-    try {
-      const settings = await XeroSettings.findOne({ where: { companyId } });
-      
-      if (!settings) {
-        return {
-          connected: false,
-          hasCredentials: false,
-          needsOAuth: true,
-          connectionStatus: 'not_configured',
-          message: 'Xero integration not configured',
-          tenants: []
-        };
-      }
-
-      const hasCredentials = !!(settings.clientId && settings.redirectUri);
-      const hasValidTokens = !!(settings.accessToken && settings.refreshToken);
-      
-      // Check if tokens are expired
-      let tokensValid = false;
-      if (settings.accessToken && settings.tokenExpiresAt) {
-        tokensValid = new Date() < new Date(settings.tokenExpiresAt);
-      }
-      
-      const connected = hasCredentials && hasValidTokens && tokensValid;
-
-      return {
-        connected,
-        hasCredentials,
-        hasValidTokens: tokensValid,
-        needsOAuth: hasCredentials && (!hasValidTokens || !tokensValid),
-        connectionStatus: connected ? 'connected' : (hasCredentials ? 'disconnected' : 'not_configured'),
-        message: connected ? 'Xero connected successfully' : 
-                 hasCredentials ? 'Not connected to Xero' : 'Xero integration not configured',
-        tenants: settings.tenants || [],
-        lastConnected: settings.updatedAt,
-        tokenExpiresAt: settings.tokenExpiresAt
-      };
-    } catch (error) {
-      console.error('❌ Connection status error:', error);
-      return {
-        connected: false,
-        hasCredentials: false,
-        needsOAuth: true,
-        connectionStatus: 'error',
-        message: 'Error checking connection status',
-        tenants: []
-      };
     }
   }
 
@@ -816,7 +766,7 @@ class PlugAndPlayXeroController {
   async healthCheck(req, res) {
     try {
       const companyId = req.company.id;
-      const status = await this.getConnectionStatusInternal(companyId);
+      const status = await getConnectionStatusInternal(companyId);
       
       res.json({
         success: true,
@@ -938,6 +888,283 @@ class PlugAndPlayXeroController {
         error: error.message
       });
     }
+  }
+
+  // Super Admin: Auto-link Xero settings to all companies
+  async autoLinkToAllCompanies(req, res) {
+    try {
+      // Check if user is super admin
+      if (req.user.role !== 'super_admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Super admin privileges required.'
+        });
+      }
+
+      const { clientId, clientSecret, redirectUri } = req.body;
+
+      if (!clientId || !clientSecret || !redirectUri) {
+        return res.status(400).json({
+          success: false,
+          message: 'Client ID, Client Secret, and Redirect URI are required'
+        });
+      }
+
+      // Get all companies
+      const companiesResult = await db.query('SELECT id, name FROM companies WHERE is_active = true');
+      const companies = companiesResult.rows;
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
+
+      // Encrypt client secret
+      const encryptedClientSecret = this.encrypt(clientSecret);
+
+      // Apply settings to all companies
+      for (const company of companies) {
+        try {
+          // Check if settings already exist
+          const existingResult = await db.query(
+            'SELECT id FROM xero_settings WHERE company_id = $1',
+            [company.id]
+          );
+
+          if (existingResult.rows.length > 0) {
+            // Update existing settings
+            await db.query(
+              'UPDATE xero_settings SET client_id = $1, client_secret = $2, redirect_uri = $3, updated_at = CURRENT_TIMESTAMP WHERE company_id = $4',
+              [clientId, encryptedClientSecret, redirectUri, company.id]
+            );
+          } else {
+            // Create new settings
+            await db.query(
+              'INSERT INTO xero_settings (company_id, client_id, client_secret, redirect_uri, created_at, updated_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+              [company.id, clientId, encryptedClientSecret, redirectUri]
+            );
+          }
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          errors.push({
+            companyId: company.id,
+            companyName: company.name,
+            error: error.message
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Xero settings applied to ${successCount} companies successfully`,
+        data: {
+          totalCompanies: companies.length,
+          successCount,
+          errorCount,
+          errors: errors.length > 0 ? errors : undefined
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Auto-link to all companies error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to auto-link Xero settings to all companies',
+        error: error.message
+      });
+    }
+  }
+
+  // Super Admin: Get Xero settings status for all companies
+  async getAllCompaniesXeroStatus(req, res) {
+    try {
+      // Check if user is super admin
+      if (req.user.role !== 'super_admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Super admin privileges required.'
+        });
+      }
+
+      const result = await db.query(`
+        SELECT 
+          c.id,
+          c.name,
+          c.created_at,
+          xs.client_id,
+          xs.redirect_uri,
+          xs.access_token,
+          xs.refresh_token,
+          xs.token_expires_at,
+          xs.tenant_id,
+          xs.created_at as xero_created_at,
+          xs.updated_at as xero_updated_at,
+          CASE 
+            WHEN xs.client_id IS NOT NULL AND xs.redirect_uri IS NOT NULL THEN true 
+            ELSE false 
+          END as has_credentials,
+          CASE 
+            WHEN xs.access_token IS NOT NULL AND xs.refresh_token IS NOT NULL 
+                 AND (xs.token_expires_at IS NULL OR xs.token_expires_at > NOW()) THEN true 
+            ELSE false 
+          END as has_valid_tokens
+        FROM companies c
+        LEFT JOIN xero_settings xs ON c.id = xs.company_id
+        WHERE c.is_active = true
+        ORDER BY c.name
+      `);
+
+      const companies = result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        createdAt: row.created_at,
+        xeroSettings: {
+          hasSettings: !!row.client_id,
+          hasCredentials: row.has_credentials,
+          hasValidTokens: row.has_valid_tokens,
+          isConnected: row.has_credentials && row.has_valid_tokens,
+          tenantId: row.tenant_id,
+          lastUpdated: row.xero_updated_at,
+          createdAt: row.xero_created_at
+        }
+      }));
+
+      const stats = {
+        totalCompanies: companies.length,
+        withSettings: companies.filter(c => c.xeroSettings.hasSettings).length,
+        withCredentials: companies.filter(c => c.xeroSettings.hasCredentials).length,
+        connected: companies.filter(c => c.xeroSettings.isConnected).length,
+        withoutSettings: companies.filter(c => !c.xeroSettings.hasSettings).length
+      };
+
+      res.json({
+        success: true,
+        message: 'Xero settings status retrieved successfully',
+        data: {
+          companies,
+          stats
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Get all companies Xero status error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get Xero settings status for all companies',
+        error: error.message
+      });
+    }
+  }
+
+  // Auto-link Xero settings to a new company (called when company is created)
+  async autoLinkToNewCompany(companyId, defaultSettings = null) {
+    try {
+      // Check if settings already exist for this company
+      const existingResult = await db.query(
+        'SELECT id FROM xero_settings WHERE company_id = $1',
+        [companyId]
+      );
+
+      if (existingResult.rows.length > 0) {
+        console.log(`✅ Xero settings already exist for company ${companyId}`);
+        return { success: true, message: 'Settings already exist' };
+      }
+
+      // Get default settings from the first company that has Xero settings
+      let settingsToUse = defaultSettings;
+      
+      if (!settingsToUse) {
+        const defaultResult = await db.query(`
+          SELECT client_id, client_secret, redirect_uri 
+          FROM xero_settings 
+          WHERE client_id IS NOT NULL AND client_secret IS NOT NULL 
+          ORDER BY created_at ASC 
+          LIMIT 1
+        `);
+        
+        if (defaultResult.rows.length > 0) {
+          settingsToUse = defaultResult.rows[0];
+        }
+      }
+
+      if (settingsToUse && settingsToUse.client_id && settingsToUse.client_secret) {
+        // Create new settings for the company
+        await db.query(
+          'INSERT INTO xero_settings (company_id, client_id, client_secret, redirect_uri, created_at, updated_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+          [companyId, settingsToUse.client_id, settingsToUse.client_secret, settingsToUse.redirect_uri]
+        );
+
+        console.log(`✅ Auto-linked Xero settings to new company ${companyId}`);
+        return { success: true, message: 'Settings auto-linked successfully' };
+      } else {
+        console.log(`⚠️ No default Xero settings found to auto-link to company ${companyId}`);
+        return { success: false, message: 'No default settings available' };
+      }
+
+    } catch (error) {
+      console.error(`❌ Failed to auto-link Xero settings to company ${companyId}:`, error);
+      return { success: false, message: error.message };
+    }
+  }
+
+}
+
+module.exports = new PlugAndPlayXeroController();
+
+// Internal function to get connection status
+async function getConnectionStatusInternal(companyId) {
+  try {
+    const result = await db.query(
+      'SELECT client_id, client_secret, redirect_uri, access_token, refresh_token, token_expires_at, tenant_id, updated_at FROM xero_settings WHERE company_id = $1',
+      [companyId]
+    );
+    
+    const settings = result.rows.length > 0 ? result.rows[0] : null;
+    
+    if (!settings) {
+      return {
+        connected: false,
+        hasCredentials: false,
+        needsOAuth: true,
+        connectionStatus: 'not_configured',
+        message: 'Xero integration not configured',
+        tenants: []
+      };
+    }
+
+    const hasCredentials = !!(settings.client_id && settings.redirect_uri);
+    const hasValidTokens = !!(settings.access_token && settings.refresh_token);
+    
+    // Check if tokens are expired
+    let tokensValid = false;
+    if (settings.access_token && settings.token_expires_at) {
+      tokensValid = new Date() < new Date(settings.token_expires_at);
+    }
+    
+    const connected = hasCredentials && hasValidTokens && tokensValid;
+
+    return {
+      connected,
+      hasCredentials,
+      hasValidTokens: tokensValid,
+      needsOAuth: hasCredentials && (!hasValidTokens || !tokensValid),
+      connectionStatus: connected ? 'connected' : (hasCredentials ? 'disconnected' : 'not_configured'),
+      message: connected ? 'Xero connected successfully' : 
+               hasCredentials ? 'Not connected to Xero' : 'Xero integration not configured',
+      tenants: settings.tenant_id ? [{ id: settings.tenant_id }] : [],
+      lastConnected: settings.updated_at,
+      tokenExpiresAt: settings.token_expires_at
+    };
+  } catch (error) {
+    console.error('❌ Connection status error:', error);
+    return {
+      connected: false,
+      hasCredentials: false,
+      needsOAuth: true,
+      connectionStatus: 'error',
+      message: 'Error checking connection status',
+      tenants: []
+    };
   }
 }
 

@@ -13,15 +13,15 @@ router.use(auth);
 router.use(addCompanyContext);
 
 // Settings Management Routes
-router.post('/settings', plugAndPlayXeroController.saveSettings);
-router.get('/settings', plugAndPlayXeroController.getSettings);
-router.delete('/settings', plugAndPlayXeroController.deleteSettings);
+router.post('/settings', plugAndPlayXeroController.saveSettings.bind(plugAndPlayXeroController));
+router.get('/settings', plugAndPlayXeroController.getSettings.bind(plugAndPlayXeroController));
+router.delete('/settings', plugAndPlayXeroController.deleteSettings.bind(plugAndPlayXeroController));
 
 // Connection Status Routes
-router.get('/status', plugAndPlayXeroController.getConnectionStatus);
+router.get('/status', plugAndPlayXeroController.getConnectionStatus.bind(plugAndPlayXeroController));
 
 // OAuth Flow Routes
-router.get('/connect', plugAndPlayXeroController.getAuthUrl);
+router.get('/connect', plugAndPlayXeroController.getAuthUrl.bind(plugAndPlayXeroController));
 router.post('/oauth-callback', plugAndPlayXeroController.handleCallback);
 router.post('/refresh-token', plugAndPlayXeroController.refreshToken);
 
@@ -120,5 +120,9 @@ router.get('/health', plugAndPlayXeroController.healthCheck);
 
 // Demo Data Routes (for testing)
 router.get('/demo/:resourceType', plugAndPlayXeroController.getDemoData);
+
+// Super Admin Routes (require super admin privileges)
+router.post('/admin/auto-link-all', plugAndPlayXeroController.autoLinkToAllCompanies);
+router.get('/admin/companies-status', plugAndPlayXeroController.getAllCompaniesXeroStatus);
 
 module.exports = router;

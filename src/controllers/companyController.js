@@ -2,12 +2,26 @@ const Company = require('../models/Company');
 const CompanyCompliance = require('../models/CompanyCompliance');
 const { generateToken } = require('../utils/jwt');
 const { complianceDetailsSchema } = require('../utils/validation');
+const plugAndPlayXeroController = require('./plugAndPlayXeroController');
 
 // Register new company
 const register = async (req, res, next) => {
   try {
     const company = await Company.create(req.body);
     const token = generateToken({ id: company.id });
+
+    // Auto-link Xero settings to the new company with correct client ID
+    try {
+      const result = await plugAndPlayXeroController.autoLinkToNewCompany(company.id);
+      if (result && result.success) {
+        console.log(`✅ Auto-assigned Xero client ID to new company: ${company.name} (ID: ${company.id})`);
+      } else {
+        console.error(`⚠️ Failed to auto-assign Xero client ID to new company ${company.id}:`, result?.message || 'Unknown error');
+      }
+    } catch (xeroError) {
+      console.error(`⚠️ Failed to auto-assign Xero client ID to new company ${company.id}:`, xeroError.message);
+      // Don't fail the registration if Xero auto-linking fails
+    }
 
     res.status(201).json({
       success: true,
@@ -27,6 +41,20 @@ const registerSuperAdmin = async (req, res, next) => {
   try {
     const company = await Company.create({ ...req.body, role: 'superadmin' });
     const token = generateToken({ id: company.id });
+
+    // Auto-link Xero settings to the new super admin company with correct client ID
+    try {
+      const autoAssignScript = require('../ensure-client-id-assignment');
+      const result = await autoAssignScript.autoAssignClientIdToNewCompany(company.id);
+      if (result.success) {
+        console.log(`✅ Auto-assigned Xero client ID to new super admin company: ${company.name} (ID: ${company.id})`);
+      } else {
+        console.error(`⚠️ Failed to auto-assign Xero client ID to new super admin company ${company.id}:`, result.message);
+      }
+    } catch (xeroError) {
+      console.error(`⚠️ Failed to auto-assign Xero client ID to new super admin company ${company.id}:`, xeroError.message);
+      // Don't fail the registration if Xero auto-linking fails
+    }
 
     res.status(201).json({
       success: true,
