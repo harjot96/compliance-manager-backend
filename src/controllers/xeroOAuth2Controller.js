@@ -212,12 +212,12 @@ const handleCallback = async (req, res) => {
     // Handle OAuth errors
     if (oauthError) {
       console.error('❌ OAuth error from Xero:', oauthError);
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero?error=oauth_denied`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=oauth_denied`);
     }
 
     if (!code || !state) {
       console.error('❌ Missing code or state in callback');
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero?error=missing_parameters`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=missing_parameters`);
     }
 
     // Validate state and get company ID
@@ -228,7 +228,7 @@ const handleCallback = async (req, res) => {
 
     if (stateResult.rows.length === 0) {
       console.error('❌ Invalid or expired state');
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero?error=invalid_state`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=invalid_state`);
     }
 
     const companyId = stateResult.rows[0].company_id;
@@ -280,7 +280,7 @@ const handleCallback = async (req, res) => {
 
     if (!clientId || !clientSecret) {
       console.error('❌ Missing client credentials for token exchange');
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero?error=missing_credentials`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=missing_credentials`);
     }
 
     // Exchange authorization code for tokens
@@ -365,7 +365,7 @@ const handleCallback = async (req, res) => {
     // Handle response based on request method
     if (req.method === 'GET') {
       // GET request - redirect to frontend (OAuth redirect flow)
-      const baseUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero`;
+      const baseUrl = `${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero`;
       const params = new URLSearchParams({
         success: 'connected',
         autoload: 'true',
@@ -415,7 +415,7 @@ const handleCallback = async (req, res) => {
     }
     
     if (req.method === 'GET') {
-      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/integrations/xero?error=${errorMessage}`);
+      res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=${errorMessage}`);
     } else {
       res.status(400).json({
         success: false,

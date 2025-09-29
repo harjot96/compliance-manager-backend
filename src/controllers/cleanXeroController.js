@@ -45,7 +45,7 @@ const saveSettings = async (req, res) => {
       settingsData = {
         clientId: clientId.trim(),
         clientSecret: clientSecret.trim(),
-        redirectUri: redirectUri?.trim() || `${process.env.FRONTEND_URL || 'http://localhost:3001'}/redirecturl`
+        redirectUri: redirectUri?.trim() || `${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/redirecturl`
       };
       authMethod = 'oauth';
       console.log('🔗 Using OAuth authentication');
@@ -174,7 +174,7 @@ const buildCleanAuthUrl = async (req, res) => {
     );
 
     // Build authorization URL
-    const redirectUri = settings.redirect_uri || `${process.env.FRONTEND_URL || 'http://localhost:3001'}/redirecturl`;
+    const redirectUri = settings.redirect_uri || `${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/redirecturl`;
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: settings.client_id,
@@ -236,7 +236,7 @@ const handleCallback = async (req, res) => {
     }
 
     // Exchange code for tokens
-    const redirectUri = settings.redirect_uri || `${process.env.FRONTEND_URL || 'http://localhost:3001'}/redirecturl`;
+    const redirectUri = settings.redirect_uri || `${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/redirecturl`;
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
       code: code,
