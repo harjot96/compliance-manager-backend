@@ -311,14 +311,16 @@ class PlugAndPlayXeroController {
   async handleCallback(req, res) {
     try {
       const companyId = req.company.id;
-      const { code, state, redirect_uri } = req.query;
+      // Handle both GET (from Xero) and POST (from frontend) requests
+      const { code, state, redirect_uri } = req.method === 'GET' ? req.query : req.body;
       
       console.log('🔧 handleCallback called with:', {
+        method: req.method,
         companyId,
         code: code ? 'PRESENT' : 'MISSING',
         state: state ? `${state.substring(0, 8)}...` : 'MISSING',
         redirect_uri,
-        query: req.query
+        source: req.method === 'GET' ? 'query' : 'body'
       });
 
       if (!code) {
