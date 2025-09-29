@@ -212,11 +212,21 @@ const handleCallback = async (req, res) => {
     // Handle OAuth errors
     if (oauthError) {
       console.error('❌ OAuth error from Xero:', oauthError);
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
       return res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=oauth_denied`);
     }
 
     if (!code || !state) {
       console.error('❌ Missing code or state in callback');
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
       return res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=missing_parameters`);
     }
 
@@ -228,6 +238,11 @@ const handleCallback = async (req, res) => {
 
     if (stateResult.rows.length === 0) {
       console.error('❌ Invalid or expired state');
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
       return res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=invalid_state`);
     }
 
@@ -280,6 +295,11 @@ const handleCallback = async (req, res) => {
 
     if (!clientId || !clientSecret) {
       console.error('❌ Missing client credentials for token exchange');
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
       return res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=missing_credentials`);
     }
 
@@ -378,6 +398,12 @@ const handleCallback = async (req, res) => {
       
       const redirectUrl = `${baseUrl}?${params.toString()}`;
       
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      
       console.log('🔄 Redirecting to frontend with auto-load trigger:', redirectUrl);
       res.redirect(redirectUrl);
     } else {
@@ -415,6 +441,12 @@ const handleCallback = async (req, res) => {
     }
     
     if (req.method === 'GET') {
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      
       res.redirect(`${process.env.FRONTEND_URL || 'https://compliance-manager-frontend.onrender.com'}/integrations/xero?error=${errorMessage}`);
     } else {
       res.status(400).json({
