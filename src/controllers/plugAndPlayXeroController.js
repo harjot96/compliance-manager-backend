@@ -404,11 +404,22 @@ class PlugAndPlayXeroController {
       }
 
       // Exchange code for tokens
+      const redirectUriForToken = redirect_uri || settings.redirect_uri;
+      
+      console.log('🔧 Token exchange parameters:', {
+        grant_type: 'authorization_code',
+        code: code ? 'PRESENT' : 'MISSING',
+        redirect_uri: redirectUriForToken,
+        client_id: clientId ? `${clientId.substring(0, 8)}...` : 'MISSING',
+        client_secret: clientSecret ? 'SET' : 'MISSING',
+        tokenUrl: this.xeroTokenUrl
+      });
+      
       const tokenResponse = await axios.post(this.xeroTokenUrl, 
         new URLSearchParams({
           grant_type: 'authorization_code',
           code: code,
-          redirect_uri: redirect_uri || settings.redirect_uri,
+          redirect_uri: redirectUriForToken,
           client_id: clientId,
           client_secret: clientSecret
         }),
@@ -470,12 +481,36 @@ class PlugAndPlayXeroController {
       });
     } catch (error) {
       console.error('❌ OAuth callback error:', error);
+      console.error('❌ Error response:', error.response?.data);
       
       if (error.response?.status === 400) {
+        const errorData = error.response.data;
+        const errorCode = errorData?.error;
+        const errorDescription = errorData?.error_description;
+        
+        console.error('❌ Xero OAuth error details:', {
+          error: errorCode,
+          description: errorDescription,
+          fullResponse: errorData
+        });
+        
+        let errorMessage = 'Invalid authorization code or configuration';
+        
+        if (errorCode === 'invalid_client') {
+          errorMessage = 'Invalid Xero client credentials. Please check your Client ID and Client Secret configuration.';
+        } else if (errorCode === 'invalid_grant') {
+          errorMessage = 'Authorization code expired or invalid. Please try connecting to Xero again.';
+        } else if (errorCode === 'invalid_redirect_uri') {
+          errorMessage = 'Invalid redirect URI. Please check your Xero app configuration.';
+        } else if (errorDescription) {
+          errorMessage = errorDescription;
+        }
+        
         return res.status(400).json({
           success: false,
-          message: 'Invalid authorization code or configuration',
-          error: error.response.data?.error_description || error.response.data?.error
+          message: errorMessage,
+          error: errorCode,
+          details: errorDescription
         });
       }
 
