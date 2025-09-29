@@ -266,6 +266,13 @@ const handleCallback = async (req, res) => {
     if (!code || !state) {
       const errorMessage = 'Code and state are required for OAuth callback';
       const frontendUrl = `${getFrontendCallbackUrl()}?success=false&error=${encodeURIComponent(errorMessage)}&errorDetails=${encodeURIComponent('Missing authorization parameters')}`;
+      
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      
       return res.redirect(frontendUrl);
     }
 
@@ -282,6 +289,13 @@ const handleCallback = async (req, res) => {
          WHERE created_at <= NOW() - INTERVAL '5 minutes'`
       );
       const frontendUrl = `${getFrontendCallbackUrl()}?success=false&error=${encodeURIComponent('Invalid or expired state')}&errorDetails=${encodeURIComponent('The authorization state token is invalid or has expired')}`;
+      
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      
       return res.redirect(frontendUrl);
     }
 
@@ -291,6 +305,13 @@ const handleCallback = async (req, res) => {
     const xeroSettings = await XeroSettings.getByCompanyId(companyId);
     if (!xeroSettings) {
       const frontendUrl = `${getFrontendCallbackUrl()}?success=false&error=${encodeURIComponent('Xero settings not configured for this company')}&errorDetails=${encodeURIComponent('Please configure Xero settings first')}`;
+      
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      
       return res.redirect(frontendUrl);
     }
 
@@ -333,6 +354,13 @@ const handleCallback = async (req, res) => {
       }
       
       const frontendUrl = `${getFrontendCallbackUrl()}?success=false&error=${encodeURIComponent(errorMessage)}&errorDetails=${encodeURIComponent(errorDetails)}&helpUrl=${encodeURIComponent(helpUrl)}&errorCode=${encodeURIComponent(payload.error || 'unknown')}`;
+      
+      // Set CORS headers before redirect
+      res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      
       return res.redirect(frontendUrl);
     }
 
@@ -367,6 +395,13 @@ const handleCallback = async (req, res) => {
     await db.query('DELETE FROM xero_oauth_states WHERE state = $1', [state]);
 
     const frontendUrl = `${getFrontendCallbackUrl()}?success=true&companyId=${companyId}&tenants=${encodeURIComponent(JSON.stringify(tenantsResponse.data))}`;
+    
+    // Set CORS headers before redirect
+    res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     return res.redirect(frontendUrl);
   } catch (error) {
     console.error('❌ OAuth Callback Error:', {
@@ -377,6 +412,13 @@ const handleCallback = async (req, res) => {
     });
 
     const frontendUrl = `${getFrontendCallbackUrl()}?success=false&error=${encodeURIComponent('Failed to complete OAuth flow')}&errorDetails=${encodeURIComponent(error.message)}`;
+    
+    // Set CORS headers before redirect
+    res.header('Access-Control-Allow-Origin', 'https://compliance-manager-frontend.onrender.com');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     return res.redirect(frontendUrl);
   }
 };
