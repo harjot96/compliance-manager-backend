@@ -184,6 +184,13 @@ class PlugAndPlayXeroController {
     try {
       const companyId = req.company.id;
       const { redirect_uri, state } = req.query;
+      
+      console.log('🔧 getAuthUrl called with:', {
+        companyId,
+        redirect_uri,
+        state: state ? `${state.substring(0, 8)}...` : 'NOT PROVIDED',
+        queryParams: req.query
+      });
 
       // Get company-specific Xero settings from database (same as existing Xero integration)
       const result = await db.query(
@@ -305,6 +312,14 @@ class PlugAndPlayXeroController {
     try {
       const companyId = req.company.id;
       const { code, state, redirect_uri } = req.body;
+      
+      console.log('🔧 handleCallback called with:', {
+        companyId,
+        code: code ? 'PRESENT' : 'MISSING',
+        state: state ? `${state.substring(0, 8)}...` : 'MISSING',
+        redirect_uri,
+        body: req.body
+      });
 
       if (!code) {
         return res.status(400).json({
@@ -331,10 +346,16 @@ class PlugAndPlayXeroController {
       }
       
       // Validate state against database
+      console.log('🔧 Validating state in database:', state);
       const stateResult = await db.query(
         'SELECT company_id FROM xero_oauth_states WHERE state = $1 AND created_at > NOW() - INTERVAL \'10 minutes\'',
         [state]
       );
+      
+      console.log('🔧 State validation result:', {
+        found: stateResult.rows.length > 0,
+        rows: stateResult.rows
+      });
       
       if (stateResult.rows.length === 0) {
         console.error('❌ Invalid or expired state');
