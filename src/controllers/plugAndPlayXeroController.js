@@ -311,14 +311,14 @@ class PlugAndPlayXeroController {
   async handleCallback(req, res) {
     try {
       const companyId = req.company.id;
-      const { code, state, redirect_uri } = req.body;
+      const { code, state, redirect_uri } = req.query;
       
       console.log('🔧 handleCallback called with:', {
         companyId,
         code: code ? 'PRESENT' : 'MISSING',
         state: state ? `${state.substring(0, 8)}...` : 'MISSING',
         redirect_uri,
-        body: req.body
+        query: req.query
       });
 
       if (!code) {

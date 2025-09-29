@@ -22,7 +22,7 @@ router.get('/status', plugAndPlayXeroController.getConnectionStatus.bind(plugAnd
 
 // OAuth Flow Routes
 router.get('/connect', plugAndPlayXeroController.getAuthUrl.bind(plugAndPlayXeroController));
-router.post('/oauth-callback', plugAndPlayXeroController.handleCallback.bind(plugAndPlayXeroController));
+router.get('/oauth-callback', plugAndPlayXeroController.handleCallback.bind(plugAndPlayXeroController));
 router.post('/refresh-token', plugAndPlayXeroController.refreshToken.bind(plugAndPlayXeroController));
 
 // Data Access Routes
