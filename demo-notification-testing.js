@@ -68,7 +68,7 @@ function demonstrateTwilioSMS() {
   console.log('\n3. Test Command:');
   console.log('node test-notifications.js sms');
   console.log('or');
-  console.log('curl -X POST http://localhost:5000/api/companies/templates/1/test \\');
+  console.log('curl -X POST http://localhost:3333/api/companies/templates/1/test \\');
   console.log('  -H "Authorization: Bearer YOUR_TOKEN" \\');
   console.log('  -d \'{"companyId": 1, "channel": "sms", "testData": {"companyName": "Test"}}\'');
   
@@ -102,7 +102,7 @@ function demonstrateSendGridEmail() {
   console.log('\n3. Test Command:');
   console.log('node test-notifications.js email');
   console.log('or');
-  console.log('curl -X POST http://localhost:5000/api/companies/templates/1/test \\');
+  console.log('curl -X POST http://localhost:3333/api/companies/templates/1/test \\');
   console.log('  -H "Authorization: Bearer YOUR_TOKEN" \\');
   console.log('  -d \'{"companyId": 1, "channel": "email", "testData": {"companyName": "Test"}}\'');
   

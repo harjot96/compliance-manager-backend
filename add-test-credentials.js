@@ -9,7 +9,7 @@ async function addTestXeroCredentials() {
     const testCredentials = {
       client_id: 'test-client-id-12345678-1234-1234-1234-123456789012', // UUID format
       client_secret: 'test-secret-abcdefghijklmnopqrstuvwxyz123456',
-      redirect_uri: 'http://localhost:3001/redirecturl'
+      redirect_uri: 'http://localhost:3004/redirecturl'
     };
     
     // Insert or update Xero settings
@@ -40,7 +40,7 @@ async function addTestXeroCredentials() {
     });
     
     console.log('\n🚀 Now you can:');
-    console.log('1. Refresh http://localhost:3001/xero-oauth2');
+    console.log('1. Refresh http://localhost:3004/xero-oauth2');
     console.log('2. You should see ✅ credentials configured');
     console.log('3. Click "Connect to Xero" (will fail with test credentials, but UI will work)');
     

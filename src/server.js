@@ -74,8 +74,9 @@ app.use(cors({
           'https://compliance-manager-frontend.onrender.com'
         ]
       : [
-          'http://localhost:3001',
+          'http://localhost:3004',
           'http://localhost:3000',
+          'http://localhost:3001',
           'http://localhost:5173',
           'https://compliance-manager-frontend.onrender.com'
         ];

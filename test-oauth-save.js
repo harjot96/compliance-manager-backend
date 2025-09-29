@@ -54,9 +54,12 @@ async function testTokenSave() {
       });
       
       console.log('\n🚀 Now test the integration:');
-      console.log('1. Go to http://localhost:3001/integrations/xero');
+      console.log('1. Go to http://localhost:3004/integrations/xero (development)');
+      console.log('   OR https://compliance-manager-frontend.onrender.com/integrations/xero (production)');
       console.log('2. Should show ✅ Connected status');
       console.log('3. Should auto-load data or show load buttons');
+      console.log('\n📝 Note: Make sure your backend is running on port 3333:');
+      console.log('   npm run dev (should start on http://localhost:3333)');
       
     } else {
       console.log('❌ No rows updated - company might not have Xero settings');
