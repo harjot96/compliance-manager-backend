@@ -265,6 +265,13 @@ class PlugAndPlayXeroController {
         stateSource: state && state.trim() !== '' ? 'FRONTEND' : 'BACKEND_GENERATED'
       });
       
+      // Store the state in database for validation during callback
+      await db.query(
+        'INSERT INTO xero_oauth_states (state, company_id, created_at) VALUES ($1, $2, NOW())',
+        [oauthState, companyId]
+      );
+      console.log('✅ OAuth state stored in database for company:', companyId);
+      
       const params = new URLSearchParams({
         response_type: 'code',
         client_id: clientId,
@@ -322,6 +329,34 @@ class PlugAndPlayXeroController {
           error: 'INVALID_STATE'
         });
       }
+      
+      // Validate state against database
+      const stateResult = await db.query(
+        'SELECT company_id FROM xero_oauth_states WHERE state = $1 AND created_at > NOW() - INTERVAL \'10 minutes\'',
+        [state]
+      );
+      
+      if (stateResult.rows.length === 0) {
+        console.error('❌ Invalid or expired state');
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or expired OAuth state',
+          error: 'INVALID_STATE'
+        });
+      }
+      
+      // Verify the state belongs to the correct company
+      const stateCompanyId = stateResult.rows[0].company_id;
+      if (stateCompanyId !== companyId) {
+        console.error('❌ State belongs to different company:', { stateCompanyId, requestCompanyId: companyId });
+        return res.status(400).json({
+          success: false,
+          message: 'OAuth state mismatch',
+          error: 'INVALID_STATE'
+        });
+      }
+      
+      console.log('✅ OAuth state validated for company:', companyId);
 
       // Get company-specific Xero settings from database (same as existing Xero integration)
       const settingsResult = await db.query(
@@ -393,6 +428,10 @@ class PlugAndPlayXeroController {
           companyId
         ]
       );
+      
+      // Clean up the OAuth state (one-time use)
+      await db.query('DELETE FROM xero_oauth_states WHERE state = $1', [state]);
+      console.log('✅ OAuth state cleaned up after successful authorization');
 
       res.json({
         success: true,
