@@ -185,8 +185,8 @@ app.use('/api/openai-admin', openaiSettingRoutes);
 app.use('/api/xero', xeroOAuth2Routes);
 // Plug-and-play Xero integration routes
 app.use('/api/xero-plug-play', plugAndPlayXeroRoutes);
-// Demo routes for testing data visibility
-app.use('/api/xero', require('./routes/demoXeroRoutes'));
+// Demo routes for testing data visibility (moved to different path to avoid conflicts)
+app.use('/api/xero-demo', require('./routes/demoXeroRoutes'));
 // Legacy routes for backward compatibility
 app.use('/api/xero-legacy', xeroRoutes);
 app.use('/api/xero-clean', cleanXeroRoutes);
