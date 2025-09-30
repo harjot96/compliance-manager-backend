@@ -1236,7 +1236,7 @@ class PlugAndPlayXeroController {
 async function getConnectionStatusInternal(companyId) {
   try {
     const result = await db.query(
-      'SELECT client_id, client_secret, redirect_uri, access_token, refresh_token, token_expires_at, tenant_id, organization_name, updated_at FROM xero_settings WHERE company_id = $1',
+      'SELECT client_id, client_secret, redirect_uri, access_token, refresh_token, token_expires_at, tenant_id, organization_name, tenant_data, updated_at FROM xero_settings WHERE company_id = $1',
       [companyId]
     );
     
@@ -1266,11 +1266,25 @@ async function getConnectionStatusInternal(companyId) {
 
     // Parse tenant data if available
     let tenants = [];
+    let organizationName = settings.organization_name;
+    
     if (settings.tenant_id) {
+      // Try to extract organization name from tenant_data if organization_name is not set
+      if (!organizationName && settings.tenant_data) {
+        try {
+          const tenantData = JSON.parse(settings.tenant_data);
+          if (tenantData && tenantData.length > 0) {
+            organizationName = tenantData[0].organisationName || tenantData[0].tenantName;
+          }
+        } catch (e) {
+          console.log('Failed to parse tenant_data:', e.message);
+        }
+      }
+      
       tenants = [{
         id: settings.tenant_id,
-        name: settings.organization_name || 'Organization',
-        organizationName: settings.organization_name || 'Organization'
+        name: organizationName || 'Organization',
+        organizationName: organizationName || 'Organization'
       }];
     }
 
