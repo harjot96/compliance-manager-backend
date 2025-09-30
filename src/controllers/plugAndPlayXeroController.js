@@ -621,8 +621,10 @@ class PlugAndPlayXeroController {
   // Internal method to refresh access token
   async refreshAccessTokenInternal(companyId) {
     try {
+      console.log('🔄 Refreshing access token for company:', companyId);
+      
       const result = await db.query(
-        'SELECT refresh_token FROM xero_settings WHERE company_id = $1',
+        'SELECT refresh_token, client_id, client_secret FROM xero_settings WHERE company_id = $1',
         [companyId]
       );
       const settings = result.rows[0];
@@ -635,11 +637,19 @@ class PlugAndPlayXeroController {
         throw new Error('Invalid refresh token');
       }
 
+      console.log('🔧 Token refresh parameters:', {
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken ? 'PRESENT' : 'MISSING',
+        client_id: settings.client_id ? `${settings.client_id.substring(0, 8)}...` : 'MISSING',
+        client_secret: settings.client_secret ? 'SET' : 'MISSING'
+      });
+
       const tokenResponse = await axios.post(this.xeroTokenUrl, 
         new URLSearchParams({
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
-          client_id: settings.clientId
+          client_id: settings.client_id,
+          client_secret: this.decrypt(settings.client_secret)
         }),
         {
           headers: {
@@ -648,18 +658,27 @@ class PlugAndPlayXeroController {
         }
       );
 
-      const { access_token, refresh_token, expires_in } = tokenResponse.data;
+      const { access_token, refresh_token: new_refresh_token, expires_in } = tokenResponse.data;
       const expiresAt = new Date(Date.now() + expires_in * 1000);
 
-      await settings.update({
-        accessToken: this.encrypt(access_token),
-        refreshToken: this.encrypt(refresh_token),
-        tokenExpiresAt: expiresAt
-      });
+      console.log('✅ Token refresh successful, updating database...');
+
+      // Update tokens in database
+      await db.query(
+        'UPDATE xero_settings SET access_token = $1, refresh_token = $2, token_expires_at = $3, updated_at = CURRENT_TIMESTAMP WHERE company_id = $4',
+        [
+          this.encrypt(access_token),
+          this.encrypt(new_refresh_token),
+          expiresAt,
+          companyId
+        ]
+      );
+
+      console.log('✅ Database updated with new tokens');
 
       return {
         accessToken: access_token,
-        refreshToken: refresh_token,
+        refreshToken: new_refresh_token,
         expiresIn: expires_in,
         tokenType: 'Bearer'
       };
@@ -696,7 +715,7 @@ class PlugAndPlayXeroController {
       }
 
       const result = await db.query(
-        'SELECT access_token FROM xero_settings WHERE company_id = $1',
+        'SELECT access_token, token_expires_at FROM xero_settings WHERE company_id = $1',
         [companyId]
       );
       const settings = result.rows[0];
@@ -708,7 +727,7 @@ class PlugAndPlayXeroController {
         });
       }
 
-      const accessToken = this.decrypt(settings.access_token);
+      let accessToken = this.decrypt(settings.access_token);
       if (!accessToken) {
         return res.status(401).json({
           success: false,
@@ -718,36 +737,39 @@ class PlugAndPlayXeroController {
       }
 
       // Check if token needs refresh
-      if (settings.tokenExpiresAt && new Date() >= new Date(settings.tokenExpiresAt)) {
-        await this.refreshAccessTokenInternal(companyId);
-        // Reload settings after refresh
-        const refreshedResult = await db.query(
-          'SELECT access_token FROM xero_settings WHERE company_id = $1',
-          [companyId]
-        );
-        const refreshedSettings = refreshedResult.rows[0];
-        const newAccessToken = this.decrypt(refreshedSettings.access_token);
-        
-        const data = await this.fetchXeroData(resourceType, newAccessToken, tenantId, {
-          page, pageSize, filters, dateFrom, dateTo
-        });
-
-        return res.json({
-          success: true,
-          message: `${resourceType} retrieved successfully`,
-          data: data,
-          tokenRefreshed: true
-        });
+      let tokenRefreshed = false;
+      if (settings.token_expires_at && new Date() >= new Date(settings.token_expires_at)) {
+        console.log('🔄 Token expired, refreshing...');
+        try {
+          await this.refreshAccessTokenInternal(companyId);
+          // Reload settings after refresh
+          const refreshedResult = await db.query(
+            'SELECT access_token FROM xero_settings WHERE company_id = $1',
+            [companyId]
+          );
+          const refreshedSettings = refreshedResult.rows[0];
+          accessToken = this.decrypt(refreshedSettings.access_token);
+          tokenRefreshed = true;
+          console.log('✅ Token refreshed successfully');
+        } catch (refreshError) {
+          console.error('❌ Token refresh failed:', refreshError);
+          return res.status(401).json({
+            success: false,
+            message: 'Xero authorization expired. Please reconnect your account.',
+            action: 'reconnect_required'
+          });
+        }
       }
 
       const data = await this.fetchXeroData(resourceType, accessToken, tenantId, {
         page, pageSize, filters, dateFrom, dateTo
       });
 
-      res.json({
+      return res.json({
         success: true,
         message: `${resourceType} retrieved successfully`,
-        data: data
+        data: data,
+        tokenRefreshed: tokenRefreshed
       });
     } catch (error) {
       console.error(`❌ Load ${req.query.resourceType} error:`, error);
@@ -838,6 +860,21 @@ class PlugAndPlayXeroController {
         break;
       case 'quotes':
         endpoint = '/api.xro/2.0/Quotes';
+        params.append('page', page);
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        break;
+      case 'transactions':
+        endpoint = '/api.xro/2.0/Transactions';
+        params.append('page', page);
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        break;
+      case 'payments':
+        endpoint = '/api.xro/2.0/Payments';
+        params.append('page', page);
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        break;
+      case 'journals':
+        endpoint = '/api.xro/2.0/Journals';
         params.append('page', page);
         if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
         break;
