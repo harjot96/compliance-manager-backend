@@ -625,6 +625,23 @@ class PlugAndPlayXeroController {
     try {
       const companyId = req.company.id;
       const { resourceType, tenantId, page = 1, pageSize = 50, filters, dateFrom, dateTo } = req.query;
+      
+      console.log('🔧 Backend loadData called with:', {
+        companyId,
+        resourceType,
+        tenantId,
+        query: req.query,
+        url: req.url
+      });
+      
+      if (!resourceType) {
+        console.error('❌ resourceType is undefined in backend');
+        return res.status(400).json({
+          success: false,
+          message: 'Resource type is required',
+          error: 'MISSING_RESOURCE_TYPE'
+        });
+      }
 
       const result = await db.query(
         'SELECT access_token FROM xero_settings WHERE company_id = $1',
