@@ -16,6 +16,7 @@ router.use(addCompanyContext);
 router.post('/settings', plugAndPlayXeroController.saveSettings.bind(plugAndPlayXeroController));
 router.get('/settings', plugAndPlayXeroController.getSettings.bind(plugAndPlayXeroController));
 router.delete('/settings', plugAndPlayXeroController.deleteSettings.bind(plugAndPlayXeroController));
+router.post('/disconnect', plugAndPlayXeroController.softDisconnect.bind(plugAndPlayXeroController));
 
 // Connection Status Routes
 router.get('/status', plugAndPlayXeroController.getConnectionStatus.bind(plugAndPlayXeroController));

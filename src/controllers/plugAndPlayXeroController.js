@@ -174,6 +174,38 @@ class PlugAndPlayXeroController {
     }
   }
 
+  // Soft disconnect - clear tokens but preserve client credentials
+  async softDisconnect(req, res) {
+    try {
+      const companyId = req.company.id;
+
+      const result = await db.query(
+        'UPDATE xero_settings SET access_token = NULL, refresh_token = NULL, token_expires_at = NULL, tenant_id = NULL, organization_name = NULL, tenant_data = NULL, updated_at = NOW() WHERE company_id = $1',
+        [companyId]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Xero settings not found for this company'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Xero connection disconnected successfully. Client credentials preserved.',
+        data: { companyId }
+      });
+    } catch (error) {
+      console.error('❌ Soft disconnect error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to disconnect Xero connection',
+        error: error.message
+      });
+    }
+  }
+
   // Get connection status
   async getConnectionStatus(req, res) {
     try {
