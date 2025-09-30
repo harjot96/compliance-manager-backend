@@ -801,12 +801,12 @@ class PlugAndPlayXeroController {
       case 'invoices':
         endpoint = '/api.xro/2.0/Invoices';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'contacts':
         endpoint = '/api.xro/2.0/Contacts';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'accounts':
         endpoint = '/api.xro/2.0/Accounts';
@@ -814,7 +814,7 @@ class PlugAndPlayXeroController {
       case 'bank-transactions':
         endpoint = '/api.xro/2.0/BankTransactions';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'organization':
         endpoint = '/api.xro/2.0/Organisation';
@@ -831,52 +831,52 @@ class PlugAndPlayXeroController {
       case 'purchase-orders':
         endpoint = '/api.xro/2.0/PurchaseOrders';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'receipts':
         endpoint = '/api.xro/2.0/Receipts';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'credit-notes':
         endpoint = '/api.xro/2.0/CreditNotes';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'manual-journals':
         endpoint = '/api.xro/2.0/ManualJournals';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'prepayments':
         endpoint = '/api.xro/2.0/Prepayments';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'overpayments':
         endpoint = '/api.xro/2.0/Overpayments';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'quotes':
         endpoint = '/api.xro/2.0/Quotes';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'transactions':
         endpoint = '/api.xro/2.0/Transactions';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'payments':
         endpoint = '/api.xro/2.0/Payments';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'journals':
         endpoint = '/api.xro/2.0/Journals';
         params.append('page', page);
-        if (pageSize) params.append('pageSize', Math.min(pageSize, 100));
+        if (pageSize) params.append('pageSize', Math.min(pageSize, 1000));
         break;
       case 'financial-summary':
         return await this.getFinancialSummary(accessToken, tenantId);
