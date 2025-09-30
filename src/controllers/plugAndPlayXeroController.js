@@ -656,12 +656,15 @@ class PlugAndPlayXeroController {
   async loadData(req, res) {
     try {
       const companyId = req.company.id;
-      const { resourceType, tenantId, page = 1, pageSize = 50, filters, dateFrom, dateTo } = req.query;
+      // Get resourceType from URL params, other parameters from query
+      const resourceType = req.params.resourceType;
+      const { tenantId, page = 1, pageSize = 50, filters, dateFrom, dateTo } = req.query;
       
       console.log('🔧 Backend loadData called with:', {
         companyId,
         resourceType,
         tenantId,
+        params: req.params,
         query: req.query,
         url: req.url
       });
