@@ -1236,7 +1236,7 @@ class PlugAndPlayXeroController {
 async function getConnectionStatusInternal(companyId) {
   try {
     const result = await db.query(
-      'SELECT client_id, client_secret, redirect_uri, access_token, refresh_token, token_expires_at, tenant_id, updated_at FROM xero_settings WHERE company_id = $1',
+      'SELECT client_id, client_secret, redirect_uri, access_token, refresh_token, token_expires_at, tenant_id, organization_name, updated_at FROM xero_settings WHERE company_id = $1',
       [companyId]
     );
     
@@ -1264,6 +1264,16 @@ async function getConnectionStatusInternal(companyId) {
     
     const connected = hasCredentials && hasValidTokens && tokensValid;
 
+    // Parse tenant data if available
+    let tenants = [];
+    if (settings.tenant_id) {
+      tenants = [{
+        id: settings.tenant_id,
+        name: settings.organization_name || 'Organization',
+        organizationName: settings.organization_name || 'Organization'
+      }];
+    }
+
     return {
       connected,
       hasCredentials,
@@ -1272,7 +1282,7 @@ async function getConnectionStatusInternal(companyId) {
       connectionStatus: connected ? 'connected' : (hasCredentials ? 'disconnected' : 'not_configured'),
       message: connected ? 'Xero connected successfully' : 
                hasCredentials ? 'Not connected to Xero' : 'Xero integration not configured',
-      tenants: settings.tenant_id ? [{ id: settings.tenant_id }] : [],
+      tenants,
       lastConnected: settings.updated_at,
       tokenExpiresAt: settings.token_expires_at
     };
