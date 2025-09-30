@@ -106,6 +106,22 @@ router.get('/quotes', (req, res, next) => {
   next();
 }, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
 
+// Additional Transaction Routes
+router.get('/transactions', (req, res, next) => {
+  req.query.resourceType = 'transactions';
+  next();
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
+
+router.get('/payments', (req, res, next) => {
+  req.query.resourceType = 'payments';
+  next();
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
+
+router.get('/journals', (req, res, next) => {
+  req.query.resourceType = 'journals';
+  next();
+}, plugAndPlayXeroController.loadData.bind(plugAndPlayXeroController));
+
 // Special Data Routes
 router.get('/financial-summary', (req, res, next) => {
   req.query.resourceType = 'financial-summary';
