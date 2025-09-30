@@ -106,6 +106,16 @@ class MissingAttachmentService {
       }
 
       console.log(`🔍 Fetching real Xero data for company ${companyId}, tenant ${effectiveTenantId}`);
+      console.log(`🔍 Access token present: ${!!xeroSettings.access_token}`);
+      console.log(`🔍 Tenant ID present: ${!!effectiveTenantId}`);
+
+      // Validate required data before proceeding
+      if (!xeroSettings.access_token) {
+        throw new Error(`Access token is missing for company ${companyId}. Please reconnect to Xero Flow.`);
+      }
+      if (!effectiveTenantId) {
+        throw new Error(`Tenant ID is missing for company ${companyId}. Please reconnect to Xero Flow.`);
+      }
 
       // Fetch all transactions from Xero (company-specific)
       const transactions = await this.fetchAllTransactions(xeroSettings.access_token, effectiveTenantId, companyId);
