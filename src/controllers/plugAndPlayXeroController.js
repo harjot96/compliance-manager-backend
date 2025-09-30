@@ -97,24 +97,39 @@ class PlugAndPlayXeroController {
         encryptedClientSecret = this.encrypt(clientSecret);
       }
 
-      const [settings, created] = await XeroSettings.upsert({
-        companyId,
-        clientId,
-        clientSecret: encryptedClientSecret,
-        redirectUri,
-        updatedAt: new Date()
-      });
+      // Check if settings already exist
+      const existingResult = await db.query(
+        'SELECT id FROM xero_settings WHERE company_id = $1',
+        [companyId]
+      );
+
+      let settings;
+      if (existingResult.rows.length > 0) {
+        // Update existing settings
+        const updateResult = await db.query(
+          'UPDATE xero_settings SET client_id = $1, client_secret = $2, redirect_uri = $3, updated_at = NOW() WHERE company_id = $4 RETURNING *',
+          [clientId, encryptedClientSecret, redirectUri, companyId]
+        );
+        settings = updateResult.rows[0];
+      } else {
+        // Insert new settings
+        const insertResult = await db.query(
+          'INSERT INTO xero_settings (company_id, client_id, client_secret, redirect_uri, created_at, updated_at) VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING *',
+          [companyId, clientId, encryptedClientSecret, redirectUri]
+        );
+        settings = insertResult.rows[0];
+      }
 
       res.json({
         success: true,
-        message: created ? 'Xero settings created successfully' : 'Xero settings updated successfully',
+        message: existingResult.rows.length > 0 ? 'Xero settings updated successfully' : 'Xero settings created successfully',
         data: {
           id: settings.id,
-          companyId: settings.companyId,
-          clientId: settings.clientId,
-          redirectUri: settings.redirectUri,
-          createdAt: settings.createdAt,
-          updatedAt: settings.updatedAt
+          companyId: settings.company_id,
+          clientId: settings.client_id,
+          redirectUri: settings.redirect_uri,
+          createdAt: settings.created_at,
+          updatedAt: settings.updated_at
         }
       });
     } catch (error) {
@@ -132,11 +147,12 @@ class PlugAndPlayXeroController {
     try {
       const companyId = req.company.id;
 
-      const deleted = await XeroSettings.destroy({
-        where: { companyId }
-      });
+      const result = await db.query(
+        'DELETE FROM xero_settings WHERE company_id = $1',
+        [companyId]
+      );
 
-      if (deleted === 0) {
+      if (result.rowCount === 0) {
         return res.status(404).json({
           success: false,
           message: 'Xero settings not found for this company'
@@ -556,12 +572,16 @@ class PlugAndPlayXeroController {
   // Internal method to refresh access token
   async refreshAccessTokenInternal(companyId) {
     try {
-      const settings = await XeroSettings.findOne({ where: { companyId } });
-      if (!settings || !settings.refreshToken) {
+      const result = await db.query(
+        'SELECT refresh_token FROM xero_settings WHERE company_id = $1',
+        [companyId]
+      );
+      const settings = result.rows[0];
+      if (!settings || !settings.refresh_token) {
         throw new Error('No refresh token available');
       }
 
-      const refreshToken = this.decrypt(settings.refreshToken);
+      const refreshToken = this.decrypt(settings.refresh_token);
       if (!refreshToken) {
         throw new Error('Invalid refresh token');
       }
@@ -606,8 +626,12 @@ class PlugAndPlayXeroController {
       const companyId = req.company.id;
       const { resourceType, tenantId, page = 1, pageSize = 50, filters, dateFrom, dateTo } = req.query;
 
-      const settings = await XeroSettings.findOne({ where: { companyId } });
-      if (!settings || !settings.accessToken) {
+      const result = await db.query(
+        'SELECT access_token FROM xero_settings WHERE company_id = $1',
+        [companyId]
+      );
+      const settings = result.rows[0];
+      if (!settings || !settings.access_token) {
         return res.status(401).json({
           success: false,
           message: 'Xero not connected. Please connect your Xero account first.',
@@ -615,7 +639,7 @@ class PlugAndPlayXeroController {
         });
       }
 
-      const accessToken = this.decrypt(settings.accessToken);
+      const accessToken = this.decrypt(settings.access_token);
       if (!accessToken) {
         return res.status(401).json({
           success: false,
@@ -628,8 +652,12 @@ class PlugAndPlayXeroController {
       if (settings.tokenExpiresAt && new Date() >= new Date(settings.tokenExpiresAt)) {
         await this.refreshAccessTokenInternal(companyId);
         // Reload settings after refresh
-        const refreshedSettings = await XeroSettings.findOne({ where: { companyId } });
-        const newAccessToken = this.decrypt(refreshedSettings.accessToken);
+        const refreshedResult = await db.query(
+          'SELECT access_token FROM xero_settings WHERE company_id = $1',
+          [companyId]
+        );
+        const refreshedSettings = refreshedResult.rows[0];
+        const newAccessToken = this.decrypt(refreshedSettings.access_token);
         
         const data = await this.fetchXeroData(resourceType, newAccessToken, tenantId, {
           page, pageSize, filters, dateFrom, dateTo
