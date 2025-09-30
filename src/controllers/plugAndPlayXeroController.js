@@ -20,15 +20,32 @@ class PlugAndPlayXeroController {
     return crypto.AES.encrypt(text, this.tokenEncryptionKey).toString();
   }
 
-  // Decrypt sensitive data
+  // Decrypt sensitive data - handles both encrypted and plain text tokens
   decrypt(encryptedText) {
     if (!encryptedText) return null;
+    
+    // Check if the text looks like a JWT token (starts with eyJ)
+    if (encryptedText.startsWith('eyJ')) {
+      console.log('🔍 Token appears to be plain text JWT, returning as-is');
+      return encryptedText;
+    }
+    
+    // Try to decrypt as encrypted text
     try {
       const bytes = crypto.AES.decrypt(encryptedText, this.tokenEncryptionKey);
-      return bytes.toString(crypto.enc.Utf8);
+      const decrypted = bytes.toString(crypto.enc.Utf8);
+      
+      // Check if decryption produced valid output
+      if (decrypted && decrypted.length > 0) {
+        console.log('✅ Successfully decrypted token');
+        return decrypted;
+      } else {
+        console.log('⚠️ Decryption produced empty result, treating as plain text');
+        return encryptedText;
+      }
     } catch (error) {
-      console.error('❌ Decryption error:', error);
-      return null;
+      console.log('⚠️ Decryption failed, treating as plain text:', error.message);
+      return encryptedText;
     }
   }
 
