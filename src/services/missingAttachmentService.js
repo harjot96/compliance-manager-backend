@@ -1,6 +1,6 @@
 const crypto = require('crypto');
+const cryptoJS = require('crypto-js');
 const axios = require('axios');
-const XeroSettings = require('../models/XeroSettings');
 const Company = require('../models/Company');
 const { UploadLink } = require('../models/UploadLink');
 const { MissingAttachmentConfig } = require('../models/MissingAttachmentConfig');
@@ -12,6 +12,36 @@ class MissingAttachmentService {
     this.defaultThreshold = 82.50; // Default GST threshold
     this.linkExpiryDays = 7;
     this.db = db;
+    this.tokenEncryptionKey = process.env.XERO_TOKEN_ENCRYPTION_KEY || 'default-encryption-key-change-in-production-32-chars';
+  }
+
+  // Decrypt sensitive data - handles both encrypted and plain text tokens
+  decrypt(encryptedText) {
+    if (!encryptedText) return null;
+    
+    // Check if the text looks like a JWT token (starts with eyJ)
+    if (encryptedText.startsWith('eyJ')) {
+      console.log('🔍 Token appears to be plain text JWT, returning as-is');
+      return encryptedText;
+    }
+    
+    // Try to decrypt as encrypted text
+    try {
+      const bytes = cryptoJS.AES.decrypt(encryptedText, this.tokenEncryptionKey);
+      const decrypted = bytes.toString(cryptoJS.enc.Utf8);
+      
+      // Check if decryption produced valid output
+      if (decrypted && decrypted.length > 0) {
+        console.log('✅ Successfully decrypted token');
+        return decrypted;
+      } else {
+        console.log('⚠️ Decryption produced empty result, treating as plain text');
+        return encryptedText;
+      }
+    } catch (error) {
+      console.log('⚠️ Decryption failed, treating as plain text:', error.message);
+      return encryptedText;
+    }
   }
 
   /**
@@ -29,22 +59,27 @@ class MissingAttachmentService {
         throw new Error('Company ID is required for data isolation');
       }
 
-      // Get Xero settings specifically for this company
-      const xeroSettings = await XeroSettings.findOne({ companyId });
+      // Get Xero settings from the new Xero Flow integration
+      const result = await db.query(
+        'SELECT client_id, client_secret, redirect_uri, access_token, refresh_token, token_expires_at, tenant_id, organization_name, tenant_data FROM xero_settings WHERE company_id = $1',
+        [companyId]
+      );
+      
+      const xeroSettings = result.rows.length > 0 ? result.rows[0] : null;
       if (!xeroSettings) {
-        throw new Error(`Xero settings not found for company ${companyId}. Please configure Xero integration first.`);
+        throw new Error(`Xero settings not found for company ${companyId}. Please configure Xero Flow integration first.`);
       }
 
       // Check if we have a valid access token
       if (!xeroSettings.access_token) {
-        throw new Error(`Xero access token not found for company ${companyId}. Please complete Xero OAuth connection first.`);
+        throw new Error(`Xero access token not found for company ${companyId}. Please complete Xero Flow connection first.`);
       }
 
       // SECURITY: Always use the company's own tenant ID from their settings
       // Never allow override of tenant ID to prevent cross-company data access
       const effectiveTenantId = xeroSettings.tenant_id;
       if (!effectiveTenantId) {
-        throw new Error(`Xero tenant ID not found for company ${companyId}. Please reconnect to Xero.`);
+        throw new Error(`Xero tenant ID not found for company ${companyId}. Please reconnect to Xero Flow.`);
       }
 
       // Log for audit trail
@@ -56,14 +91,17 @@ class MissingAttachmentService {
         try {
           await this.refreshXeroToken(companyId, xeroSettings);
           // Reload settings after refresh
-          const refreshedSettings = await XeroSettings.findOne({ companyId });
-          if (refreshedSettings && refreshedSettings.access_token) {
-            xeroSettings.access_token = refreshedSettings.access_token;
-            xeroSettings.tenant_id = refreshedSettings.tenant_id;
+          const refreshedResult = await db.query(
+            'SELECT access_token, tenant_id FROM xero_settings WHERE company_id = $1',
+            [companyId]
+          );
+          if (refreshedResult.rows.length > 0 && refreshedResult.rows[0].access_token) {
+            xeroSettings.access_token = refreshedResult.rows[0].access_token;
+            xeroSettings.tenant_id = refreshedResult.rows[0].tenant_id;
           }
         } catch (refreshError) {
           console.error(`❌ Failed to refresh Xero token for company ${companyId}:`, refreshError);
-          throw new Error(`Xero token expired and refresh failed for company ${companyId}. Please reconnect to Xero.`);
+          throw new Error(`Xero token expired and refresh failed for company ${companyId}. Please reconnect to Xero Flow.`);
         }
       }
 
@@ -1026,13 +1064,16 @@ Reply STOP to opt out.`;
 
       console.log('🔄 Refreshing Xero access token...');
 
+      // Decrypt client secret if it's encrypted
+      const clientSecret = this.decrypt(xeroSettings.client_secret) || xeroSettings.client_secret;
+
       const response = await axios.post('https://identity.xero.com/connect/token', 
         new URLSearchParams({
           grant_type: 'refresh_token',
           refresh_token: xeroSettings.refresh_token
         }), {
           headers: {
-            'Authorization': `Basic ${Buffer.from(`${xeroSettings.client_id}:${xeroSettings.client_secret}`).toString('base64')}`,
+            'Authorization': `Basic ${Buffer.from(`${xeroSettings.client_id}:${clientSecret}`).toString('base64')}`,
             'Content-Type': 'application/x-www-form-urlencoded'
           }
         }
