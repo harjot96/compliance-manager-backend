@@ -61,12 +61,19 @@ class MissingAttachmentService {
       }
 
       // Get Xero settings from the new Xero Flow integration
+      console.log(`🔍 [Company ${companyId}] Retrieving Xero settings from database...`);
       const result = await db.query(
         'SELECT client_id, client_secret, redirect_uri, access_token, refresh_token, token_expires_at, tenant_id, organization_name, tenant_data FROM xero_settings WHERE company_id = $1',
         [companyId]
       );
       
       const xeroSettings = result.rows.length > 0 ? result.rows[0] : null;
+      console.log(`🔍 [Company ${companyId}] Xero settings retrieved: ${xeroSettings ? 'YES' : 'NO'}`);
+      if (xeroSettings) {
+        console.log(`🔍 [Company ${companyId}] Access token present: ${!!xeroSettings.access_token}`);
+        console.log(`🔍 [Company ${companyId}] Tenant ID present: ${!!xeroSettings.tenant_id}`);
+        console.log(`🔍 [Company ${companyId}] Organization: ${xeroSettings.organization_name || 'Unknown'}`);
+      }
       if (!xeroSettings) {
         throw new Error(`Xero settings not found for company ${companyId}. Please configure Xero Flow integration first.`);
       }
