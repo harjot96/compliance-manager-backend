@@ -12,6 +12,7 @@ const {
 // Configuration routes (require authentication + company isolation)
 router.get('/config', auth, addCompanyContext, validateCompanyDataAccess, missingAttachmentController.getConfig);
 router.put('/config', auth, addCompanyContext, validateCompanyDataAccess, missingAttachmentController.updateConfig);
+router.get('/notification-status', auth, addCompanyContext, validateCompanyDataAccess, missingAttachmentController.getNotificationStatus);
 
 // Detection and processing routes (require authentication + company isolation)
 router.get('/detect', auth, addCompanyContext, validateCompanyDataAccess, missingAttachmentController.detectMissingAttachments);

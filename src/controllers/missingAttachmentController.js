@@ -1,4 +1,5 @@
 const missingAttachmentService = require('../services/missingAttachmentService');
+const notificationService = require('../services/notificationService');
 const { MissingAttachmentConfig } = require('../models/MissingAttachmentConfig');
 const { UploadLink } = require('../models/UploadLink');
 const Company = require('../models/Company');
@@ -133,6 +134,66 @@ const updateConfig = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update configuration',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get notification service configuration status
+ */
+const getNotificationStatus = async (req, res) => {
+  try {
+    const companyId = req.company.id;
+    
+    // Get company's notification configuration
+    const config = await MissingAttachmentConfig.findOne({ companyId });
+    
+    // Get notification service configuration status
+    const notificationConfig = notificationService.getConfigurationStatus();
+    
+    // Validate phone number if provided
+    let phoneNumberValid = false;
+    if (config?.phoneNumber) {
+      phoneNumberValid = notificationService.validatePhoneNumber(config.phoneNumber);
+    }
+    
+    // Validate email address if provided
+    let emailAddressValid = false;
+    if (config?.emailAddress) {
+      emailAddressValid = notificationService.validateEmail(config.emailAddress);
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        // Company notification settings
+        company: {
+          enableSMS: config?.enableSMS || false,
+          enableEmail: config?.enableEmail || false,
+          phoneNumber: config?.phoneNumber || null,
+          emailAddress: config?.emailAddress || null,
+          phoneNumberValid: phoneNumberValid,
+          emailAddressValid: emailAddressValid
+        },
+        // Notification service configuration
+        service: {
+          twilio: notificationConfig.twilio,
+          email: notificationConfig.email
+        },
+        // Overall status
+        status: {
+          smsAvailable: notificationConfig.twilio.configured && phoneNumberValid,
+          emailAvailable: notificationConfig.email.configured && emailAddressValid,
+          fullyConfigured: notificationConfig.twilio.configured && notificationConfig.email.configured
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting notification status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get notification status',
       error: error.message
     });
   }
@@ -458,6 +519,7 @@ const getDuplicateStats = async (req, res) => {
 module.exports = {
   getConfig,
   updateConfig,
+  getNotificationStatus,
   detectMissingAttachments,
   processMissingAttachments,
   getUploadLinks,

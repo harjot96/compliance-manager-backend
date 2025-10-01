@@ -5,6 +5,7 @@ const Company = require('../models/Company');
 const { UploadLink } = require('../models/UploadLink');
 const { MissingAttachmentConfig } = require('../models/MissingAttachmentConfig');
 const emailService = require('./emailService');
+const notificationService = require('./notificationService');
 const db = require('../config/database');
 
 class MissingAttachmentService {
@@ -670,10 +671,94 @@ Reply STOP to opt out.`;
       }
 
       console.log(`✅ Processed ${results.totalTransactions} missing attachments for company ${companyId}`);
+
+      // Send notifications if missing attachments are found
+      if (missingAttachments.length > 0) {
+        try {
+          const notificationResult = await this.sendMissingAttachmentNotifications(companyId, missingAttachments, company.name);
+          results.notifications = notificationResult;
+        } catch (notificationError) {
+          console.error('❌ Error sending notifications:', notificationError);
+          results.errors.push({
+            type: 'notification',
+            error: `Notification failed: ${notificationError.message}`
+          });
+        }
+      }
+
       return results;
     } catch (error) {
       console.error('❌ Error processing missing attachments:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Send notifications for missing attachments
+   * @param {string} companyId - Company ID
+   * @param {Array} missingAttachments - Array of missing attachment records
+   * @param {string} companyName - Company name
+   * @returns {Promise<Object>} Notification results
+   */
+  async sendMissingAttachmentNotifications(companyId, missingAttachments, companyName) {
+    try {
+      console.log(`📧 Sending notifications for ${missingAttachments.length} missing attachments to company ${companyId}`);
+
+      // Get company's notification configuration
+      const config = await MissingAttachmentConfig.findOne({ companyId });
+      if (!config) {
+        console.log('📧 No notification configuration found for company');
+        return {
+          success: false,
+          message: 'No notification configuration found'
+        };
+      }
+
+      // Check if notifications are enabled
+      if (!config.enableSMS && !config.enableEmail) {
+        console.log('📧 Notifications are disabled for this company');
+        return {
+          success: false,
+          message: 'Notifications are disabled'
+        };
+      }
+
+      // Validate phone number if SMS is enabled
+      if (config.enableSMS && config.phoneNumber && !notificationService.validatePhoneNumber(config.phoneNumber)) {
+        console.log('📧 Invalid phone number format, disabling SMS notifications');
+        config.enableSMS = false;
+      }
+
+      // Validate email address if email is enabled
+      if (config.enableEmail && config.emailAddress && !notificationService.validateEmail(config.emailAddress)) {
+        console.log('📧 Invalid email address format, disabling email notifications');
+        config.enableEmail = false;
+      }
+
+      // Send notifications using the notification service
+      const notificationConfig = {
+        enableSMS: config.enableSMS,
+        enableEmail: config.enableEmail,
+        phoneNumber: config.phoneNumber,
+        emailAddress: config.emailAddress
+      };
+
+      const result = await notificationService.sendMissingAttachmentNotification(
+        notificationConfig,
+        missingAttachments,
+        companyName
+      );
+
+      console.log(`✅ Notifications sent successfully:`, result);
+      return result;
+
+    } catch (error) {
+      console.error('❌ Error sending missing attachment notifications:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to send notifications'
+      };
     }
   }
 
