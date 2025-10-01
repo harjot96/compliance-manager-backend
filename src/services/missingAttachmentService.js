@@ -82,19 +82,25 @@ class MissingAttachmentService {
       }
 
       // Check if refresh token might be expired (Xero refresh tokens expire after 60 days)
-      const refreshTokenAge = xeroSettings.updated_at ? new Date() - new Date(xeroSettings.updated_at) : null;
+      // Use created_at if available, otherwise fall back to updated_at
+      const tokenCreatedAt = xeroSettings.created_at || xeroSettings.updated_at;
+      const refreshTokenAge = tokenCreatedAt ? new Date() - new Date(tokenCreatedAt) : null;
       const refreshTokenAgeDays = refreshTokenAge ? Math.floor(refreshTokenAge / (1000 * 60 * 60 * 24)) : null;
       
       console.log(`🔍 Refresh token age check for company ${companyId}:`, {
+        createdAt: xeroSettings.created_at,
         updatedAt: xeroSettings.updated_at,
         ageInDays: refreshTokenAgeDays,
-        isPotentiallyExpired: refreshTokenAgeDays && refreshTokenAgeDays > 55 // Warning at 55 days
+        isPotentiallyExpired: refreshTokenAgeDays && refreshTokenAgeDays > 55
       });
       
-      if (refreshTokenAgeDays && refreshTokenAgeDays > 60) {
-        throw new Error(`Xero refresh token has likely expired (last updated ${refreshTokenAgeDays} days ago). Please reconnect to Xero Flow to get new tokens.`);
+      // Only block if token is definitely expired (more than 65 days to be safe)
+      // This gives some buffer beyond Xero's 60-day limit
+      if (refreshTokenAgeDays && refreshTokenAgeDays > 65) {
+        console.error(`❌ Refresh token for company ${companyId} is ${refreshTokenAgeDays} days old - definitely expired`);
+        throw new Error(`Xero refresh token has expired (created ${refreshTokenAgeDays} days ago). Please reconnect to Xero Flow to get new tokens.`);
       } else if (refreshTokenAgeDays && refreshTokenAgeDays > 55) {
-        console.warn(`⚠️ Refresh token for company ${companyId} is ${refreshTokenAgeDays} days old and may expire soon. Consider reconnecting to Xero Flow.`);
+        console.warn(`⚠️ Refresh token for company ${companyId} is ${refreshTokenAgeDays} days old and may expire soon. Will attempt refresh if needed.`);
       }
 
       // SECURITY: Always use the company's own tenant ID from their settings
@@ -304,11 +310,12 @@ class MissingAttachmentService {
    * @param {string} companyId - Company ID (for logging and security)
    * @returns {Promise<Array>} Xero data
    */
-  async fetchXeroDataWithPagination(accessToken, tenantId, endpoint, companyId) {
+  async fetchXeroDataWithPagination(accessToken, tenantId, endpoint, companyId, retryCount = 0) {
     const allData = [];
     let page = 1;
     const pageSize = 100; // Xero's maximum page size
     let hasMoreData = true;
+    const maxRetries = 1; // Allow one retry for 401 errors
 
     try {
       while (hasMoreData) {
@@ -324,7 +331,8 @@ class MissingAttachmentService {
             params: {
               page: page,
               pageSize: pageSize
-            }
+            },
+            timeout: 15000 // 15 second timeout
           });
 
           const data = response.data[endpoint] || [];
@@ -351,18 +359,37 @@ class MissingAttachmentService {
             data: apiError.response?.data
           });
           
-          // Handle token expiration specifically
+          // Handle different error types
           if (apiError.response?.status === 401) {
             const errorData = apiError.response.data;
-            if (errorData && errorData.error_description && errorData.error_description.includes('token')) {
-              throw new Error(`Xero API authentication failed for ${endpoint}. Token may be expired.`);
+            console.error(`🔍 401 Error details for ${endpoint}:`, {
+              error: errorData?.error,
+              errorDescription: errorData?.error_description,
+              fullResponse: errorData,
+              retryCount
+            });
+            
+            // Retry logic for 401 errors (might be temporary)
+            if (retryCount < maxRetries) {
+              console.log(`🔄 Retrying ${endpoint} API call after 401 error (attempt ${retryCount + 1}/${maxRetries + 1})`);
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+              return this.fetchXeroDataWithPagination(accessToken, tenantId, endpoint, companyId, retryCount + 1);
+            }
+            
+            // Check for specific token-related errors after retries exhausted
+            if (errorData?.error === 'invalid_token' || errorData?.error_description?.includes('token')) {
+              throw new Error(`Xero API authentication failed for ${endpoint}. Token may be expired. Please try reconnecting to Xero Flow.`);
+            } else if (errorData?.error === 'unauthorized_client') {
+              throw new Error(`Xero API authentication failed for ${endpoint}. Client credentials may be invalid. Please check Xero app configuration.`);
             } else {
-              throw new Error(`Xero API authentication failed for ${endpoint}. Please reconnect to Xero.`);
+              throw new Error(`Xero API authentication failed for ${endpoint}. Please reconnect to Xero Flow.`);
             }
           } else if (apiError.response?.status === 403) {
             throw new Error(`Insufficient permissions to access ${endpoint}. Please check Xero app permissions.`);
           } else if (apiError.response?.status === 404) {
             throw new Error(`Xero ${endpoint} endpoint not found. Please check tenant configuration.`);
+          } else if (apiError.response?.status >= 500) {
+            throw new Error(`Xero server error (${apiError.response.status}) for ${endpoint}. Please try again later.`);
           } else {
             throw new Error(`Failed to fetch ${endpoint} from Xero: ${apiError.message}`);
           }
