@@ -76,6 +76,27 @@ class MissingAttachmentService {
         throw new Error(`Xero access token not found for company ${companyId}. Please complete Xero Flow connection first.`);
       }
 
+      // Check if refresh token exists (required for token refresh)
+      if (!xeroSettings.refresh_token) {
+        throw new Error(`Xero refresh token not found for company ${companyId}. Please reconnect to Xero Flow to get new tokens.`);
+      }
+
+      // Check if refresh token might be expired (Xero refresh tokens expire after 60 days)
+      const refreshTokenAge = xeroSettings.updated_at ? new Date() - new Date(xeroSettings.updated_at) : null;
+      const refreshTokenAgeDays = refreshTokenAge ? Math.floor(refreshTokenAge / (1000 * 60 * 60 * 24)) : null;
+      
+      console.log(`🔍 Refresh token age check for company ${companyId}:`, {
+        updatedAt: xeroSettings.updated_at,
+        ageInDays: refreshTokenAgeDays,
+        isPotentiallyExpired: refreshTokenAgeDays && refreshTokenAgeDays > 55 // Warning at 55 days
+      });
+      
+      if (refreshTokenAgeDays && refreshTokenAgeDays > 60) {
+        throw new Error(`Xero refresh token has likely expired (last updated ${refreshTokenAgeDays} days ago). Please reconnect to Xero Flow to get new tokens.`);
+      } else if (refreshTokenAgeDays && refreshTokenAgeDays > 55) {
+        console.warn(`⚠️ Refresh token for company ${companyId} is ${refreshTokenAgeDays} days old and may expire soon. Consider reconnecting to Xero Flow.`);
+      }
+
       // SECURITY: Always use the company's own tenant ID from their settings
       // Never allow override of tenant ID to prevent cross-company data access
       const effectiveTenantId = xeroSettings.tenant_id;
