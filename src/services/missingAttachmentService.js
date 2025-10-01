@@ -568,12 +568,20 @@ Reply STOP to opt out.`;
         throw new Error('Company not found');
       }
 
-      // Get company's Xero tenants
-      const xeroSettings = await XeroSettings.findOne({ companyId });
-      if (!xeroSettings) {
+      // Get company's Xero settings
+      const xeroSettingsQuery = `
+        SELECT * FROM xero_settings 
+        WHERE company_id = $1 AND connected = true
+        LIMIT 1
+      `;
+      const xeroSettingsResult = await db.query(xeroSettingsQuery, [companyId]);
+      
+      if (!xeroSettingsResult.rows || xeroSettingsResult.rows.length === 0) {
         throw new Error('Xero not connected for this company');
       }
 
+      const xeroSettings = xeroSettingsResult.rows[0];
+      
       // Use the actual tenant ID from Xero settings
       const tenantId = xeroSettings.tenant_id;
       if (!tenantId) {
@@ -818,7 +826,18 @@ Reply STOP to opt out.`;
   async attachToXeroTransaction(uploadLink, storageResult) {
     try {
       // Get Xero access token for the company
-      const xeroSettings = await XeroSettings.findOne({ companyId: uploadLink.companyId });
+      const xeroSettingsQuery = `
+        SELECT * FROM xero_settings 
+        WHERE company_id = $1 AND connected = true
+        LIMIT 1
+      `;
+      const xeroSettingsResult = await db.query(xeroSettingsQuery, [uploadLink.companyId]);
+      
+      if (!xeroSettingsResult.rows || xeroSettingsResult.rows.length === 0) {
+        throw new Error('Xero not connected for this company');
+      }
+
+      const xeroSettings = xeroSettingsResult.rows[0];
       if (!xeroSettings || !xeroSettings.access_token) {
         throw new Error('Xero not connected for this company');
       }
