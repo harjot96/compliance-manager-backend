@@ -101,7 +101,17 @@ class MissingAttachmentService {
           }
         } catch (refreshError) {
           console.error(`❌ Failed to refresh Xero token for company ${companyId}:`, refreshError);
-          throw new Error(`Xero token expired and refresh failed for company ${companyId}. Please reconnect to Xero Flow.`);
+          
+          // Provide more specific error messages based on the refresh error
+          if (refreshError.message.includes('Refresh token has expired')) {
+            throw new Error(`Xero refresh token has expired for company ${companyId}. Please reconnect to Xero Flow to get new tokens.`);
+          } else if (refreshError.message.includes('Invalid client credentials')) {
+            throw new Error(`Invalid Xero client credentials for company ${companyId}. Please check Xero app configuration.`);
+          } else if (refreshError.message.includes('Missing client credentials')) {
+            throw new Error(`Missing Xero client credentials for company ${companyId}. Please reconfigure Xero integration.`);
+          } else {
+            throw new Error(`Xero token expired and refresh failed for company ${companyId}. Please reconnect to Xero Flow.`);
+          }
         }
       }
 
@@ -1072,10 +1082,18 @@ Reply STOP to opt out.`;
         throw new Error('No refresh token available');
       }
 
-      console.log('🔄 Refreshing Xero access token...');
+      console.log(`🔄 Refreshing Xero access token for company ${companyId}...`);
+      console.log(`🔍 Client ID: ${xeroSettings.client_id ? 'present' : 'missing'}`);
+      console.log(`🔍 Refresh token: ${xeroSettings.refresh_token ? 'present' : 'missing'}`);
+      console.log(`🔍 Client secret: ${xeroSettings.client_secret ? 'present' : 'missing'}`);
 
       // Decrypt client secret if it's encrypted
       const clientSecret = this.decrypt(xeroSettings.client_secret) || xeroSettings.client_secret;
+      console.log(`🔍 Decrypted client secret: ${clientSecret ? 'present' : 'missing'}`);
+
+      if (!xeroSettings.client_id || !clientSecret) {
+        throw new Error('Missing client credentials for token refresh');
+      }
 
       const response = await axios.post('https://identity.xero.com/connect/token', 
         new URLSearchParams({
@@ -1093,6 +1111,8 @@ Reply STOP to opt out.`;
       const expiresAt = new Date();
       expiresAt.setSeconds(expiresAt.getSeconds() + tokenData.expires_in);
 
+      console.log(`🔄 Token refresh response: ${tokenData.access_token ? 'success' : 'failed'}`);
+
       // Update the database with new tokens
       await this.db.query(
         `UPDATE xero_settings 
@@ -1101,10 +1121,27 @@ Reply STOP to opt out.`;
         [tokenData.access_token, tokenData.refresh_token, expiresAt, companyId]
       );
 
-      console.log('✅ Xero token refreshed successfully');
+      console.log(`✅ Xero token refreshed successfully for company ${companyId}`);
       return tokenData;
     } catch (error) {
-      console.error('❌ Error refreshing Xero token:', error.response?.data || error.message);
+      console.error(`❌ Error refreshing Xero token for company ${companyId}:`, {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        clientId: xeroSettings.client_id ? 'present' : 'missing',
+        refreshToken: xeroSettings.refresh_token ? 'present' : 'missing'
+      });
+      
+      // Provide more specific error messages
+      if (error.response?.status === 400) {
+        const errorData = error.response.data;
+        if (errorData.error === 'invalid_grant') {
+          throw new Error('Refresh token has expired. Please reconnect to Xero Flow.');
+        } else if (errorData.error === 'invalid_client') {
+          throw new Error('Invalid client credentials. Please check Xero app configuration.');
+        }
+      }
+      
       throw error;
     }
   }
