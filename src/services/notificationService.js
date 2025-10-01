@@ -302,9 +302,21 @@ If you have any questions, please contact your system administrator.
    * @returns {boolean} True if valid format
    */
   validatePhoneNumber(phoneNumber) {
-    // Basic phone number validation (supports international format)
-    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-    return phoneRegex.test(phoneNumber.replace(/[\s\-\(\)]/g, ''));
+    if (!phoneNumber || typeof phoneNumber !== 'string') {
+      return false;
+    }
+    
+    // Remove all non-digit characters except +
+    const cleaned = phoneNumber.replace(/[^\d+]/g, '');
+    
+    // Check if it's a valid international format (+ followed by 7-15 digits)
+    if (cleaned.startsWith('+')) {
+      const digits = cleaned.substring(1);
+      return /^\d{7,15}$/.test(digits);
+    }
+    
+    // Check if it's a valid national format (7-15 digits, may start with 0)
+    return /^\d{7,15}$/.test(cleaned);
   }
 
   /**
