@@ -87,18 +87,34 @@ class MissingAttachmentService {
       console.log(`🔒 Data isolation: Company ${companyId} accessing tenant ${effectiveTenantId}`);
 
       // Check if token is expired and try to refresh if needed
-      if (xeroSettings.token_expires_at && new Date(xeroSettings.token_expires_at) <= new Date()) {
+      const tokenExpiryTime = xeroSettings.token_expires_at ? new Date(xeroSettings.token_expires_at) : null;
+      const currentTime = new Date();
+      const tokenExpiresIn = tokenExpiryTime ? (tokenExpiryTime.getTime() - currentTime.getTime()) / 1000 : null;
+      
+      console.log(`🔍 Token expiry check for company ${companyId}:`, {
+        hasExpiryTime: !!tokenExpiryTime,
+        expiresAt: tokenExpiryTime?.toISOString(),
+        expiresInSeconds: tokenExpiresIn,
+        isExpired: tokenExpiryTime && tokenExpiryTime <= currentTime
+      });
+      
+      if (tokenExpiryTime && tokenExpiryTime <= currentTime) {
         console.log(`🔄 Xero token expired for company ${companyId}, attempting to refresh...`);
         try {
           await this.refreshXeroToken(companyId, xeroSettings);
           // Reload settings after refresh
           const refreshedResult = await db.query(
-            'SELECT access_token, tenant_id FROM xero_settings WHERE company_id = $1',
+            'SELECT access_token, refresh_token, token_expires_at, tenant_id FROM xero_settings WHERE company_id = $1',
             [companyId]
           );
           if (refreshedResult.rows.length > 0 && refreshedResult.rows[0].access_token) {
             xeroSettings.access_token = refreshedResult.rows[0].access_token;
+            xeroSettings.refresh_token = refreshedResult.rows[0].refresh_token;
+            xeroSettings.token_expires_at = refreshedResult.rows[0].token_expires_at;
             xeroSettings.tenant_id = refreshedResult.rows[0].tenant_id;
+            console.log(`✅ Token refreshed successfully for company ${companyId}`);
+          } else {
+            throw new Error('Failed to retrieve refreshed token from database');
           }
         } catch (refreshError) {
           console.error(`❌ Failed to refresh Xero token for company ${companyId}:`, refreshError);
@@ -113,6 +129,25 @@ class MissingAttachmentService {
           } else {
             throw new Error(`Xero token expired and refresh failed for company ${companyId}. Please reconnect to Xero Flow.`);
           }
+        }
+      } else if (tokenExpiresIn && tokenExpiresIn < 300) { // Refresh if expires in less than 5 minutes
+        console.log(`🔄 Xero token expires soon (${Math.round(tokenExpiresIn)}s) for company ${companyId}, refreshing proactively...`);
+        try {
+          await this.refreshXeroToken(companyId, xeroSettings);
+          // Reload settings after refresh
+          const refreshedResult = await db.query(
+            'SELECT access_token, refresh_token, token_expires_at, tenant_id FROM xero_settings WHERE company_id = $1',
+            [companyId]
+          );
+          if (refreshedResult.rows.length > 0 && refreshedResult.rows[0].access_token) {
+            xeroSettings.access_token = refreshedResult.rows[0].access_token;
+            xeroSettings.refresh_token = refreshedResult.rows[0].refresh_token;
+            xeroSettings.token_expires_at = refreshedResult.rows[0].token_expires_at;
+            xeroSettings.tenant_id = refreshedResult.rows[0].tenant_id;
+            console.log(`✅ Token refreshed proactively for company ${companyId}`);
+          }
+        } catch (refreshError) {
+          console.warn(`⚠️ Proactive token refresh failed for company ${companyId}, continuing with current token:`, refreshError.message);
         }
       }
 
@@ -258,34 +293,58 @@ class MissingAttachmentService {
       while (hasMoreData) {
         console.log(`📄 [Company ${companyId}] Fetching ${endpoint} page ${page}...`);
         
-        const response = await axios.get(`https://api.xero.com/api.xro/2.0/${endpoint}`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Xero-tenant-id': tenantId,
-            'Accept': 'application/json'
-          },
-          params: {
-            page: page,
-            pageSize: pageSize
+        try {
+          const response = await axios.get(`https://api.xero.com/api.xro/2.0/${endpoint}`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Xero-tenant-id': tenantId,
+              'Accept': 'application/json'
+            },
+            params: {
+              page: page,
+              pageSize: pageSize
+            }
+          });
+
+          const data = response.data[endpoint] || [];
+          allData.push(...data);
+
+          // Check if we have more data
+          hasMoreData = data.length === pageSize;
+          page++;
+
+          // Safety check to prevent infinite loops
+          if (page > 50) {
+            console.warn(`⚠️ Reached maximum page limit (50) for ${endpoint}`);
+            break;
           }
-        });
 
-        const data = response.data[endpoint] || [];
-        allData.push(...data);
-
-        // Check if we have more data
-        hasMoreData = data.length === pageSize;
-        page++;
-
-        // Safety check to prevent infinite loops
-        if (page > 50) {
-          console.warn(`⚠️ Reached maximum page limit (50) for ${endpoint}`);
-          break;
-        }
-
-        // Add a small delay to avoid rate limiting
-        if (hasMoreData) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+          // Add a small delay to avoid rate limiting
+          if (hasMoreData) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        } catch (apiError) {
+          console.error(`❌ API Error for ${endpoint} page ${page}:`, {
+            status: apiError.response?.status,
+            message: apiError.message,
+            data: apiError.response?.data
+          });
+          
+          // Handle token expiration specifically
+          if (apiError.response?.status === 401) {
+            const errorData = apiError.response.data;
+            if (errorData && errorData.error_description && errorData.error_description.includes('token')) {
+              throw new Error(`Xero API authentication failed for ${endpoint}. Token may be expired.`);
+            } else {
+              throw new Error(`Xero API authentication failed for ${endpoint}. Please reconnect to Xero.`);
+            }
+          } else if (apiError.response?.status === 403) {
+            throw new Error(`Insufficient permissions to access ${endpoint}. Please check Xero app permissions.`);
+          } else if (apiError.response?.status === 404) {
+            throw new Error(`Xero ${endpoint} endpoint not found. Please check tenant configuration.`);
+          } else {
+            throw new Error(`Failed to fetch ${endpoint} from Xero: ${apiError.message}`);
+          }
         }
       }
 
@@ -1180,13 +1239,15 @@ Reply STOP to opt out.`;
    * @param {Object} xeroSettings - Current Xero settings
    * @returns {Promise<Object>} Refreshed token data
    */
-  async refreshXeroToken(companyId, xeroSettings) {
+  async refreshXeroToken(companyId, xeroSettings, retryCount = 0) {
+    const maxRetries = 2;
+    
     try {
       if (!xeroSettings.refresh_token) {
         throw new Error('No refresh token available');
       }
 
-      console.log(`🔄 Refreshing Xero access token for company ${companyId}...`);
+      console.log(`🔄 Refreshing Xero access token for company ${companyId}... (attempt ${retryCount + 1}/${maxRetries + 1})`);
       console.log(`🔍 Client ID: ${xeroSettings.client_id ? 'present' : 'missing'}`);
       console.log(`🔍 Refresh token: ${xeroSettings.refresh_token ? 'present' : 'missing'}`);
       console.log(`🔍 Client secret: ${xeroSettings.client_secret ? 'present' : 'missing'}`);
@@ -1207,7 +1268,8 @@ Reply STOP to opt out.`;
           headers: {
             'Authorization': `Basic ${Buffer.from(`${xeroSettings.client_id}:${clientSecret}`).toString('base64')}`,
             'Content-Type': 'application/x-www-form-urlencoded'
-          }
+          },
+          timeout: 10000 // 10 second timeout
         }
       );
 
@@ -1228,13 +1290,20 @@ Reply STOP to opt out.`;
       console.log(`✅ Xero token refreshed successfully for company ${companyId}`);
       return tokenData;
     } catch (error) {
-      console.error(`❌ Error refreshing Xero token for company ${companyId}:`, {
+      console.error(`❌ Error refreshing Xero token for company ${companyId} (attempt ${retryCount + 1}):`, {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,
         clientId: xeroSettings.client_id ? 'present' : 'missing',
         refreshToken: xeroSettings.refresh_token ? 'present' : 'missing'
       });
+      
+      // Retry logic for network errors
+      if (retryCount < maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.response?.status >= 500)) {
+        console.log(`🔄 Retrying token refresh for company ${companyId} in 2 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return this.refreshXeroToken(companyId, xeroSettings, retryCount + 1);
+      }
       
       // Provide more specific error messages
       if (error.response?.status === 400) {
