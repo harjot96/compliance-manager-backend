@@ -113,68 +113,37 @@ class MissingAttachmentService {
       // Log for audit trail
       console.log(`🔒 Data isolation: Company ${companyId} accessing tenant ${effectiveTenantId}`);
 
-      // Check if token is expired and try to refresh if needed
-      const tokenExpiryTime = xeroSettings.token_expires_at ? new Date(xeroSettings.token_expires_at) : null;
-      const currentTime = new Date();
-      const tokenExpiresIn = tokenExpiryTime ? (tokenExpiryTime.getTime() - currentTime.getTime()) / 1000 : null;
-      
-      console.log(`🔍 Token expiry check for company ${companyId}:`, {
-        hasExpiryTime: !!tokenExpiryTime,
-        expiresAt: tokenExpiryTime?.toISOString(),
-        expiresInSeconds: tokenExpiresIn,
-        isExpired: tokenExpiryTime && tokenExpiryTime <= currentTime
-      });
-      
-      if (tokenExpiryTime && tokenExpiryTime <= currentTime) {
-        console.log(`🔄 Xero token expired for company ${companyId}, attempting to refresh...`);
-        try {
-          await this.refreshXeroToken(companyId, xeroSettings);
-          // Reload settings after refresh
-          const refreshedResult = await db.query(
-            'SELECT access_token, refresh_token, token_expires_at, tenant_id FROM xero_settings WHERE company_id = $1',
-            [companyId]
-          );
-          if (refreshedResult.rows.length > 0 && refreshedResult.rows[0].access_token) {
-            xeroSettings.access_token = refreshedResult.rows[0].access_token;
-            xeroSettings.refresh_token = refreshedResult.rows[0].refresh_token;
-            xeroSettings.token_expires_at = refreshedResult.rows[0].token_expires_at;
-            xeroSettings.tenant_id = refreshedResult.rows[0].tenant_id;
-            console.log(`✅ Token refreshed successfully for company ${companyId}`);
-          } else {
-            throw new Error('Failed to retrieve refreshed token from database');
-          }
-        } catch (refreshError) {
-          console.error(`❌ Failed to refresh Xero token for company ${companyId}:`, refreshError);
-          
-          // Provide more specific error messages based on the refresh error
-          if (refreshError.message.includes('Refresh token has expired')) {
-            throw new Error(`Xero refresh token has expired for company ${companyId}. Please reconnect to Xero Flow to get new tokens.`);
-          } else if (refreshError.message.includes('Invalid client credentials')) {
-            throw new Error(`Invalid Xero client credentials for company ${companyId}. Please check Xero app configuration.`);
-          } else if (refreshError.message.includes('Missing client credentials')) {
-            throw new Error(`Missing Xero client credentials for company ${companyId}. Please reconfigure Xero integration.`);
-          } else {
-            throw new Error(`Xero token expired and refresh failed for company ${companyId}. Please reconnect to Xero Flow.`);
-          }
+      // Always attempt to refresh token before making API calls to ensure we have a fresh token
+      console.log(`🔄 Ensuring fresh token for company ${companyId} before API calls...`);
+      try {
+        await this.refreshXeroToken(companyId, xeroSettings);
+        // Reload settings after refresh
+        const refreshedResult = await db.query(
+          'SELECT access_token, refresh_token, token_expires_at, tenant_id FROM xero_settings WHERE company_id = $1',
+          [companyId]
+        );
+        if (refreshedResult.rows.length > 0 && refreshedResult.rows[0].access_token) {
+          xeroSettings.access_token = refreshedResult.rows[0].access_token;
+          xeroSettings.refresh_token = refreshedResult.rows[0].refresh_token;
+          xeroSettings.token_expires_at = refreshedResult.rows[0].token_expires_at;
+          xeroSettings.tenant_id = refreshedResult.rows[0].tenant_id;
+          console.log(`✅ Token refreshed successfully for company ${companyId}`);
+        } else {
+          throw new Error('Failed to retrieve refreshed token from database');
         }
-      } else if (tokenExpiresIn && tokenExpiresIn < 300) { // Refresh if expires in less than 5 minutes
-        console.log(`🔄 Xero token expires soon (${Math.round(tokenExpiresIn)}s) for company ${companyId}, refreshing proactively...`);
-        try {
-          await this.refreshXeroToken(companyId, xeroSettings);
-          // Reload settings after refresh
-          const refreshedResult = await db.query(
-            'SELECT access_token, refresh_token, token_expires_at, tenant_id FROM xero_settings WHERE company_id = $1',
-            [companyId]
-          );
-          if (refreshedResult.rows.length > 0 && refreshedResult.rows[0].access_token) {
-            xeroSettings.access_token = refreshedResult.rows[0].access_token;
-            xeroSettings.refresh_token = refreshedResult.rows[0].refresh_token;
-            xeroSettings.token_expires_at = refreshedResult.rows[0].token_expires_at;
-            xeroSettings.tenant_id = refreshedResult.rows[0].tenant_id;
-            console.log(`✅ Token refreshed proactively for company ${companyId}`);
-          }
-        } catch (refreshError) {
-          console.warn(`⚠️ Proactive token refresh failed for company ${companyId}, continuing with current token:`, refreshError.message);
+      } catch (refreshError) {
+        console.error(`❌ Failed to refresh Xero token for company ${companyId}:`, refreshError);
+        
+        // Check if this is a refresh token expiry error
+        if (refreshError.message.includes('invalid_grant') || refreshError.message.includes('Refresh token has expired')) {
+          throw new Error(`Xero refresh token has expired for company ${companyId}. Please reconnect to Xero Flow to get new tokens.`);
+        } else if (refreshError.message.includes('invalid_client') || refreshError.message.includes('Invalid client credentials')) {
+          throw new Error(`Invalid Xero client credentials for company ${companyId}. Please check Xero app configuration.`);
+        } else if (refreshError.message.includes('Missing client credentials')) {
+          throw new Error(`Missing Xero client credentials for company ${companyId}. Please reconfigure Xero integration.`);
+        } else {
+          // If refresh fails for other reasons, log the error but continue with existing token
+          console.warn(`⚠️ Token refresh failed for company ${companyId}, continuing with existing token:`, refreshError.message);
         }
       }
 
@@ -233,57 +202,77 @@ class MissingAttachmentService {
 
       // Fetch invoices with pagination
       console.log(`📄 [Company ${companyId}] Fetching invoices...`);
-      const invoices = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'Invoices', companyId);
-      transactions.push(...invoices.map(inv => ({ 
-        ...inv, 
-        type: 'Invoice',
-        TransactionID: inv.InvoiceID,
-        Amount: inv.Total,
-        TaxAmount: inv.TotalTax,
-        companyId // Add company ID to each transaction for security
-      })));
+      try {
+        const invoices = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'Invoices', companyId);
+        transactions.push(...invoices.map(inv => ({ 
+          ...inv, 
+          type: 'Invoice',
+          TransactionID: inv.InvoiceID,
+          Amount: inv.Total,
+          TaxAmount: inv.TotalTax,
+          companyId // Add company ID to each transaction for security
+        })));
+        console.log(`✅ [Company ${companyId}] Successfully fetched ${invoices.length} invoices`);
+      } catch (error) {
+        console.error(`❌ [Company ${companyId}] Failed to fetch invoices:`, error.message);
+        // Continue with other transaction types even if invoices fail
+      }
 
       // Fetch bank transactions with pagination
       console.log(`🏦 [Company ${companyId}] Fetching bank transactions...`);
-      const bankTransactions = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'BankTransactions', companyId);
-      transactions.push(...bankTransactions.map(bt => ({ 
-        ...bt, 
-        type: 'BankTransaction',
-        TransactionID: bt.BankTransactionID,
-        Amount: bt.Total,
-        TaxAmount: bt.TotalTax,
-        companyId // Add company ID to each transaction for security
-      })));
+      try {
+        const bankTransactions = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'BankTransactions', companyId);
+        transactions.push(...bankTransactions.map(bt => ({ 
+          ...bt, 
+          type: 'BankTransaction',
+          TransactionID: bt.BankTransactionID,
+          Amount: bt.Total,
+          TaxAmount: bt.TotalTax,
+          companyId // Add company ID to each transaction for security
+        })));
+        console.log(`✅ [Company ${companyId}] Successfully fetched ${bankTransactions.length} bank transactions`);
+      } catch (error) {
+        console.error(`❌ [Company ${companyId}] Failed to fetch bank transactions:`, error.message);
+        // Continue with other transaction types even if bank transactions fail
+      }
 
       // Fetch receipts with pagination
       console.log(`🧾 [Company ${companyId}] Fetching receipts...`);
-      const receipts = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'Receipts', companyId);
-      transactions.push(...receipts.map(r => ({ 
-        ...r, 
-        type: 'Receipt',
-        TransactionID: r.ReceiptID,
-        Amount: r.Total,
-        TaxAmount: r.TotalTax,
-        companyId // Add company ID to each transaction for security
-      })));
+      try {
+        const receipts = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'Receipts', companyId);
+        transactions.push(...receipts.map(r => ({ 
+          ...r, 
+          type: 'Receipt',
+          TransactionID: r.ReceiptID,
+          Amount: r.Total,
+          TaxAmount: r.TotalTax,
+          companyId // Add company ID to each transaction for security
+        })));
+        console.log(`✅ [Company ${companyId}] Successfully fetched ${receipts.length} receipts`);
+      } catch (error) {
+        console.error(`❌ [Company ${companyId}] Failed to fetch receipts:`, error.message);
+        // Continue with other transaction types even if receipts fail
+      }
 
       // Fetch purchase orders with pagination
       console.log(`📋 [Company ${companyId}] Fetching purchase orders...`);
-      const purchaseOrders = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'PurchaseOrders', companyId);
-      transactions.push(...purchaseOrders.map(po => ({ 
-        ...po, 
-        type: 'PurchaseOrder',
-        TransactionID: po.PurchaseOrderID,
-        Amount: po.Total,
-        TaxAmount: po.TotalTax,
-        companyId // Add company ID to each transaction for security
-      })));
+      try {
+        const purchaseOrders = await this.fetchXeroDataWithPagination(accessToken, tenantId, 'PurchaseOrders', companyId);
+        transactions.push(...purchaseOrders.map(po => ({ 
+          ...po, 
+          type: 'PurchaseOrder',
+          TransactionID: po.PurchaseOrderID,
+          Amount: po.Total,
+          TaxAmount: po.TotalTax,
+          companyId // Add company ID to each transaction for security
+        })));
+        console.log(`✅ [Company ${companyId}] Successfully fetched ${purchaseOrders.length} purchase orders`);
+      } catch (error) {
+        console.error(`❌ [Company ${companyId}] Failed to fetch purchase orders:`, error.message);
+        // Continue even if purchase orders fail
+      }
 
       console.log(`📊 [Company ${companyId}] Total transactions fetched: ${transactions.length}`);
-      console.log(`📄 [Company ${companyId}] Invoices: ${invoices.length}`);
-      console.log(`🏦 [Company ${companyId}] Bank Transactions: ${bankTransactions.length}`);
-      console.log(`🧾 [Company ${companyId}] Receipts: ${receipts.length}`);
-      console.log(`📋 [Company ${companyId}] Purchase Orders: ${purchaseOrders.length}`);
 
       return transactions;
     } catch (error) {
@@ -373,6 +362,19 @@ class MissingAttachmentService {
             if (retryCount < maxRetries) {
               console.log(`🔄 Retrying ${endpoint} API call after 401 error (attempt ${retryCount + 1}/${maxRetries + 1})`);
               await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+              
+              // Try to refresh token before retry
+              try {
+                console.log(`🔄 Attempting token refresh before retry for ${endpoint}...`);
+                const refreshResult = await this.refreshXeroToken(companyId);
+                if (refreshResult && refreshResult.access_token) {
+                  console.log(`✅ Token refreshed before retry, using new token for ${endpoint}`);
+                  return this.fetchXeroDataWithPagination(refreshResult.access_token, tenantId, endpoint, companyId, retryCount + 1);
+                }
+              } catch (refreshError) {
+                console.warn(`⚠️ Token refresh before retry failed for ${endpoint}:`, refreshError.message);
+              }
+              
               return this.fetchXeroDataWithPagination(accessToken, tenantId, endpoint, companyId, retryCount + 1);
             }
             
