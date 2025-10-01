@@ -149,7 +149,9 @@ class MissingAttachmentService {
 
       console.log(`🔍 Fetching real Xero data for company ${companyId}, tenant ${effectiveTenantId}`);
       console.log(`🔍 Access token present: ${!!xeroSettings.access_token}`);
+      console.log(`🔍 Access token length: ${xeroSettings.access_token ? xeroSettings.access_token.length : 0} characters`);
       console.log(`🔍 Tenant ID present: ${!!effectiveTenantId}`);
+      console.log(`🔍 Using Xero token for API calls: ${xeroSettings.access_token ? 'YES' : 'NO'}`);
 
       // Validate required data before proceeding
       if (!xeroSettings.access_token) {
@@ -168,6 +170,7 @@ class MissingAttachmentService {
       });
 
       console.log(`📎 Found ${missingAttachments.length} transactions without attachments`);
+      console.log(`🔐 [Company ${companyId}] Xero token successfully used to fetch ${transactions.length} total transactions`);
       
       // Calculate money at risk for each transaction
       const transactionsWithRisk = missingAttachments.map(transaction => {
@@ -272,7 +275,8 @@ class MissingAttachmentService {
         // Continue even if purchase orders fail
       }
 
-      console.log(`📊 [Company ${companyId}] Total transactions fetched: ${transactions.length}`);
+      console.log(`📊 [Company ${companyId}] Total transactions fetched using Xero token: ${transactions.length}`);
+      console.log(`🔐 [Company ${companyId}] Xero token successfully used for data retrieval`);
 
       return transactions;
     } catch (error) {
@@ -311,6 +315,9 @@ class MissingAttachmentService {
         console.log(`📄 [Company ${companyId}] Fetching ${endpoint} page ${page}...`);
         
         try {
+          console.log(`🔐 [Company ${companyId}] Making API call to ${endpoint} with token: ${accessToken ? 'Present' : 'Missing'} (${accessToken ? accessToken.length : 0} chars)`);
+          console.log(`🔐 [Company ${companyId}] Using tenant ID: ${tenantId}`);
+          
           const response = await axios.get(`https://api.xero.com/api.xro/2.0/${endpoint}`, {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -326,6 +333,8 @@ class MissingAttachmentService {
 
           const data = response.data[endpoint] || [];
           allData.push(...data);
+
+          console.log(`✅ [Company ${companyId}] Successfully fetched ${data.length} ${endpoint} records from Xero API (page ${page})`);
 
           // Check if we have more data
           hasMoreData = data.length === pageSize;
