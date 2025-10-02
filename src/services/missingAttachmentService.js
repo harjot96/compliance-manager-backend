@@ -5,7 +5,14 @@ const Company = require('../models/Company');
 const { UploadLink } = require('../models/UploadLink');
 const { MissingAttachmentConfig } = require('../models/MissingAttachmentConfig');
 const emailService = require('./emailService');
-const notificationService = require('./notificationService');
+// Optional import for notification service (may not exist in production)
+let notificationService;
+try {
+  notificationService = require('./notificationService');
+} catch (error) {
+  console.log('⚠️ Notification service not available:', error.message);
+  notificationService = null;
+}
 const db = require('../config/database');
 
 class MissingAttachmentService {
@@ -845,6 +852,17 @@ Reply STOP to opt out.`;
         return {
           success: false,
           message: 'Notifications are disabled'
+        };
+      }
+
+      // Check if notification service is available
+      if (!notificationService) {
+        console.log('⚠️ Notification service not available, skipping notifications');
+        return {
+          success: false,
+          message: 'Notification service not available',
+          smsSent: false,
+          emailSent: false
         };
       }
 

@@ -1,5 +1,12 @@
 const missingAttachmentService = require('../services/missingAttachmentService');
-const notificationService = require('../services/notificationService');
+// Optional import for notification service (may not exist in production)
+let notificationService;
+try {
+  notificationService = require('../services/notificationService');
+} catch (error) {
+  console.log('⚠️ Notification service not available in controller:', error.message);
+  notificationService = null;
+}
 const { MissingAttachmentConfig } = require('../models/MissingAttachmentConfig');
 const { UploadLink } = require('../models/UploadLink');
 const Company = require('../models/Company');
