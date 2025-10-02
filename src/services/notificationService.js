@@ -1,5 +1,12 @@
 const twilio = require('twilio');
-const nodemailer = require('nodemailer');
+// Optional import for nodemailer (may not exist in production)
+let nodemailer;
+try {
+  nodemailer = require('nodemailer');
+} catch (error) {
+  console.log('⚠️ Nodemailer not available:', error.message);
+  nodemailer = null;
+}
 
 class NotificationService {
   constructor() {
@@ -19,8 +26,8 @@ class NotificationService {
       this.twilioClient = twilio(this.twilioAccountSid, this.twilioAuthToken);
     }
     
-    // Initialize email transporter if credentials are available
-    if (this.emailUser && this.emailPassword) {
+    // Initialize email transporter if credentials are available and nodemailer exists
+    if (this.emailUser && this.emailPassword && nodemailer) {
       this.emailTransporter = nodemailer.createTransporter({
         host: this.emailHost,
         port: this.emailPort,
@@ -85,6 +92,10 @@ class NotificationService {
    */
   async sendEmail(to, subject, htmlContent, textContent = '') {
     try {
+      if (!nodemailer) {
+        throw new Error('Nodemailer not available. Email service is disabled.');
+      }
+      
       if (!this.emailTransporter) {
         throw new Error('Email not configured. Please set EMAIL_USER and EMAIL_PASSWORD environment variables.');
       }
@@ -342,11 +353,12 @@ If you have any questions, please contact your system administrator.
         hasPhoneNumber: !!this.twilioPhoneNumber
       },
       email: {
-        configured: !!(this.emailUser && this.emailPassword),
+        configured: !!(nodemailer && this.emailUser && this.emailPassword),
         hasUser: !!this.emailUser,
         hasPassword: !!this.emailPassword,
         host: this.emailHost,
-        port: this.emailPort
+        port: this.emailPort,
+        nodemailerAvailable: !!nodemailer
       }
     };
   }
